@@ -80,6 +80,10 @@ Download `MagicInput-Windows.zip` from the [latest release](https://github.com/b
 3. **Pair them.** In the panel, click the link icon to see this computer's code, and type it into **Other computer's code** on the other computer. They find each other automatically.
 4. **Move across.** Push the pointer firmly past the left or right edge of your screen. To make it exact, drag the other computer to where it really sits in **Displays**.
 
+**Switching to the other computer’s own mouse or keyboard?** A deliberate mouse movement, click, or key press reclaims control there. You can then cross its screen edge normally. Small mouse twitches are ignored.
+
+An iPad participates as a display connected to your Mac through Sidecar; MagicInput does not require or provide a standalone iPad app.
+
 **Control+Option+Esc** on the Mac (**Ctrl+Alt+Esc** on the PC) always brings the pointer home.
 
 <p align="center">
