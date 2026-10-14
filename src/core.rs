@@ -26,6 +26,9 @@ const CONTROLLED: u8 = 2;
 const MAX_CLIPBOARD: usize = 60_000;
 /// Movement arriving later than this (beyond the usual network delay) is replayed as a glide.
 const LATE_MS: f64 = 12.0;
+/// Movement (points) of this computer's own mouse, within half a second, that takes control
+/// back while the other computer is driving it.
+const TAKE_OVER_MOTION: f64 = 24.0;
 /// In auto mode (no side configured) you have to push this far past the edge, so brushing
 /// against it doesn't switch computers.
 const AUTO_PUSH: f64 = 120.0;
@@ -63,6 +66,9 @@ struct State {
     active_side: Side,
     /// How far past the edge the user has pushed so far (auto mode).
     push: f64,
+    /// Own-mouse movement while being controlled (see `TAKE_OVER_MOTION`).
+    local_motion: f64,
+    local_motion_at: Instant,
     local_buttons: HashSet<Button>,
     /// Keys we are forwarding (controller side), to spot the escape hotkey.
     forwarded_keys: HashSet<u16>,
@@ -121,6 +127,8 @@ impl Core {
                 side: None,
                 active_side: Side::Right,
                 push: 0.0,
+                local_motion: 0.0,
+                local_motion_at: long_ago,
                 local_buttons: HashSet::new(),
                 forwarded_keys: HashSet::new(),
                 injected_keys: HashSet::new(),
@@ -253,10 +261,37 @@ impl Core {
                 false
             }
             _ => {
-                // Being controlled: the local keyboard/mouse still work normally.
-                if let LocalEvent::Move { x, y, .. } = ev {
-                    st.cur = (x, y);
+                // Being controlled, and someone uses this computer's own mouse or keyboard: they
+                // want it back. Hand control home (the other computer's pointer returns to its
+                // edge), so from here they can also cross over with this mouse. Small jitters
+                // of the mouse don't count.
+                let take_over = match ev {
+                    LocalEvent::Move { x, y, dx, dy } => {
+                        st.cur = (x, y);
+                        if st.local_motion_at.elapsed() > Duration::from_millis(500) {
+                            st.local_motion = 0.0;
+                        }
+                        st.local_motion += dx.abs() + dy.abs();
+                        st.local_motion_at = Instant::now();
+                        st.local_motion > TAKE_OVER_MOTION
+                    }
+                    LocalEvent::Button { down: true, .. } | LocalEvent::Key { down: true, .. } => true,
+                    _ => false,
+                };
+                if take_over {
+                    let ds = self.displays(&mut st);
+                    let ratio = geom::ratio_on_side(&ds, st.cur.0, st.cur.1, st.active_side);
+                    self.release_injected(&mut st);
+                    self.mode.store(LOCAL, Ordering::SeqCst);
+                    st.last_switch = Instant::now();
+                    st.local_motion = 0.0;
+                    self.send(Msg::Leave { ratio });
+                    let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                    info!("Using this computer's own mouse/keyboard: taking control back from {name}");
+                    drop(st);
+                    self.share_clipboard();
                 }
+                // Either way the event goes through as usual.
                 false
             }
         }
@@ -348,6 +383,7 @@ impl Core {
                 st.last_switch = Instant::now();
                 st.push = 0.0;
                 st.local_buttons.clear();
+                st.local_motion = 0.0;
                 self.mode.store(CONTROLLED, Ordering::SeqCst);
                 let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
                 info!("← {name} is controlling this computer");
