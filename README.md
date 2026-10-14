@@ -19,7 +19,8 @@ permission: turn on **MagicInput** under System Settings → Privacy & Security 
 and **Input Monitoring**. It starts working as soon as both are on, and from then on it starts by
 itself every time you log in.
 
-**Windows**: put `magicinput.exe` and `magicinputw.exe` in the same folder and run, from a
+**Windows**: put `magicinput.exe`, `magicinputw.exe`, `magicinput-app.exe` and `WebView2Loader.dll`
+in the same folder and run, from a
 terminal opened as administrator:
 
 ```
@@ -31,15 +32,17 @@ magicinput.exe install
 login (no window, with admin rights so it also works over admin apps), and allows it through the
 firewall on private networks.
 
-**Use it.** By default nothing needs setting up: push the pointer firmly past the left or right
-edge of the screen and it jumps to the other computer, then comes back through the same edge.
-If your setup is fixed, pin it so the switch happens without the firm push (on either computer;
-the other one works it out):
+**Use it.** Open **MagicInput** (Applications / Spotlight on the Mac, Start menu on Windows) for
+the settings window. By default nothing needs setting up: push the pointer firmly past the left or
+right edge of the screen and it jumps to the other computer, then comes back through the same edge.
 
-```
-magicinput side right     # the other computer is to the right of this one
-magicinput side auto      # back to the default
-```
+For an exact fit, drag the other computer's screen in **Arrangement** to where it really is, next to
+your own displays (an iPad used as a Sidecar display shows up there too, wherever macOS has it).
+The pointer then crosses only where the screens touch, at the matching height, with no firm push
+needed. Arranging on either computer updates the other one. **Auto** goes back to the default.
+
+The window is its own small process: it exists only while open, unless you turn on the menu bar /
+notification area icon.
 
 It only ever talks to computers on the same local network (same subnet): VPNs such as Tailscale
 and the internet are refused.
@@ -48,7 +51,8 @@ and the internet are refused.
 
 | Command | What it does |
 | --- | --- |
-| `magicinput` | Start sharing |
+| `magicinput` | Open the settings window |
+| `magicinput run` | Run the background service (started at login) |
 | `magicinput pair [CODE]` | Make a new pairing code, or use the other computer's |
 | `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer's screen is (auto by default) |
 | `magicinput peer 192.168.1.20` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |

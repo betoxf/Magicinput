@@ -18,7 +18,11 @@ use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use wry::{WebView, WebViewBuilder};
 
-use crate::config::{self, Config};
+use crate::config::{self, Config, Layout};
+use crate::geom::{self, Placement, Rect};
+use crate::proto::Side;
+#[cfg(not(target_os = "macos"))]
+use crate::platform;
 use crate::{service, status};
 
 /// Local port a running window listens on, so opening the app again just brings it forward.
@@ -117,6 +121,7 @@ pub fn run(background: bool) {
     let mut win: Option<(Window, WebView)> = None;
     let mut tray: Option<Tray> = None;
     let mut login = service::installed();
+    let mut names: Vec<(Rect, String)> = Vec::new();
 
     event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::Wait;
@@ -146,7 +151,8 @@ pub fn run(background: bool) {
                     t.status.set_text(status_line(&st));
                 }
                 if let Some((_, wv)) = &win {
-                    let _ = wv.evaluate_script(&format!("render({})", state(&st, login)));
+                    names = monitor_names(target);
+                    let _ = wv.evaluate_script(&format!("render({})", state(&st, login, &names)));
                 }
             }
             Event::UserEvent(UserEvent::Ipc(msg)) => {
@@ -171,10 +177,29 @@ pub fn run(background: bool) {
                         tray = if on { make_tray() } else { None };
                     }
                     "login" => set_login(v.as_bool().unwrap_or(true), &proxy),
+                    "auto" => save(|c| {
+                        c.layout = None;
+                        c.peer_side = None;
+                        c.layout_time = now_ms();
+                    }),
+                    "arrange" => {
+                        let st = status::read();
+                        let side = v["side"].as_str().and_then(Side::parse);
+                        let offset = v["offset"].as_f64();
+                        let mine = st.as_ref().map(|s| s.screens.clone()).unwrap_or_default();
+                        let theirs = st.as_ref().and_then(|s| geom::union(&s.peer_screens)).unwrap_or(PLACEHOLDER);
+                        if let (Some(side), Some(offset), false) = (side, offset, mine.is_empty()) {
+                            let length = geom::along_extent(&theirs, side).1;
+                            save(|c| {
+                                c.layout = Some(Layout { side, offset, length, owner: c.id.clone(), owner_screens: mine });
+                                c.layout_time = now_ms();
+                            });
+                        }
+                    }
                     _ => {}
                 }
                 if let Some((_, wv)) = &win {
-                    let _ = wv.evaluate_script(&format!("render({})", state(&status::read(), login)));
+                    let _ = wv.evaluate_script(&format!("render({})", state(&status::read(), login, &names)));
                 }
             }
             // Dropping the window frees the web view entirely.
@@ -200,7 +225,7 @@ pub fn run(background: bool) {
 fn open_window(target: &tao::event_loop::EventLoopWindowTarget<UserEvent>, proxy: &EventLoopProxy<UserEvent>) -> Option<(Window, WebView)> {
     let window = WindowBuilder::new()
         .with_title("MagicInput")
-        .with_inner_size(LogicalSize::new(400.0, 704.0))
+        .with_inner_size(LogicalSize::new(400.0, 800.0))
         .with_resizable(false)
         .build(target)
         .ok()?;
@@ -280,8 +305,93 @@ fn set_login(enable: bool, proxy: &EventLoopProxy<UserEvent>) {
     });
 }
 
-fn state(st: &Option<status::Status>, login: bool) -> String {
+/// Size of the other computer's screen when it isn't connected (a 16:10 screen, in points).
+const PLACEHOLDER: Rect = Rect { x: 0.0, y: 0.0, w: 1600.0, h: 1000.0 };
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// Display names as macOS shows them ("Built-in", "iPad" for Sidecar, monitor names), in points.
+#[cfg(target_os = "macos")]
+fn monitor_names(_target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) -> Vec<(Rect, String)> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSScreen;
+    let Some(mtm) = MainThreadMarker::new() else { return Vec::new() };
+    let screens = NSScreen::screens(mtm);
+    // Cocoa measures from the bottom of the main screen; the service uses top-left like Quartz.
+    let main_h = screens.firstObject().map(|s| s.frame().size.height).unwrap_or(0.0);
+    screens
+        .iter()
+        .map(|s| {
+            let f = s.frame();
+            let r = Rect { x: f.origin.x, y: main_h - f.origin.y - f.size.height, w: f.size.width, h: f.size.height };
+            (r, friendly_name(s.localizedName().to_string()))
+        })
+        .collect()
+}
+
+/// Display names, positioned in the same logical units the service reports.
+#[cfg(not(target_os = "macos"))]
+fn monitor_names(target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) -> Vec<(Rect, String)> {
+    target
+        .available_monitors()
+        .map(|m| {
+            // Macs work in points already; Windows positions are in pixels of the system scale.
+            let k = if cfg!(target_os = "macos") { m.scale_factor() } else { platform::pointer_scale() };
+            let (p, s) = (m.position(), m.size());
+            let r = Rect { x: p.x as f64 / k, y: p.y as f64 / k, w: s.width as f64 / k, h: s.height as f64 / k };
+            (r, friendly_name(m.name().unwrap_or_default()))
+        })
+        .collect()
+}
+
+fn friendly_name(name: String) -> String {
+    let lower = name.to_lowercase();
+    if lower.contains("sidecar") || lower.contains("ipad") {
+        "iPad".into()
+    } else if lower.contains("color lcd") || lower.contains("built-in") || lower.contains("built in") {
+        "Built-in".into()
+    } else if let Some(n) = name.strip_prefix(r"\\.\DISPLAY") {
+        format!("Display {n}")
+    } else {
+        name
+    }
+}
+
+/// The arrangement as seen from this computer, for drawing.
+fn placement_here(c: &Config, mine: &[Rect]) -> Option<Placement> {
+    let l = c.layout.as_ref()?;
+    if l.owner == c.id {
+        return Some(l.placement());
+    }
+    Some(l.placement().mirrored(&geom::union(&l.owner_screens)?, &geom::union(mine)?))
+}
+
+fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> String {
     let c = Config::load();
+    let mine: Vec<Rect> = match st {
+        Some(s) if !s.screens.is_empty() => s.screens.clone(),
+        _ => names.iter().map(|n| n.0).collect(),
+    };
+    // Label each screen with the closest display name.
+    let screens: Vec<Value> = mine
+        .iter()
+        .map(|r| {
+            let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
+            let name = names
+                .iter()
+                .min_by(|a, b| {
+                    let d = |q: &Rect| (q.x + q.w / 2.0 - cx).powi(2) + (q.y + q.h / 2.0 - cy).powi(2);
+                    d(&a.0).total_cmp(&d(&b.0))
+                })
+                .map(|n| n.1.clone())
+                .unwrap_or_default();
+            json!({ "x": r.x, "y": r.y, "w": r.w, "h": r.h, "name": name })
+        })
+        .collect();
+    let peer = st.as_ref().and_then(|s| geom::union(&s.peer_screens)).unwrap_or(PLACEHOLDER);
+    let placement = placement_here(&c, &mine).map(|p| json!({ "side": format!("{:?}", p.side).to_lowercase(), "offset": p.offset, "length": p.length }));
     json!({
         "os": if cfg!(target_os = "macos") { "mac" } else { "windows" },
         "version": env!("CARGO_PKG_VERSION"),
@@ -299,6 +409,9 @@ fn state(st: &Option<status::Status>, login: bool) -> String {
         "peer_os": st.as_ref().and_then(|s| s.peer_os.clone()),
         "controlling": st.as_ref().is_some_and(|s| s.controlling),
         "controlled": st.as_ref().is_some_and(|s| s.controlled),
+        "screens": screens,
+        "peer_size": { "w": peer.w, "h": peer.h },
+        "placement": placement,
     })
     .to_string()
 }

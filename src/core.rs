@@ -44,10 +44,19 @@ pub struct Peer {
     pub name: String,
     pub os: Os,
     pub side_hint: Option<Side>,
+    /// Its screens, in logical units.
+    pub screens: Vec<Rect>,
+    pub layout: Option<crate::config::Layout>,
+    pub layout_time: u64,
 }
 
 struct State {
     peer: Option<Peer>,
+    /// Where the other computer sits, from the arrangement (in this computer's units).
+    placement: Option<geom::Placement>,
+    /// `layout_time` last applied, and the last one that came from the other computer.
+    layout_seen: u64,
+    layout_synced: u64,
     /// Configured (or inferred) side of the other computer; `None` = auto (left or right).
     side: Option<Side>,
     /// The edge the current crossing went through, on this computer.
@@ -95,6 +104,7 @@ pub struct Core {
 impl Core {
     pub fn new(cfg: Config, out: Sender<Msg>) -> Core {
         let long_ago = Instant::now() - Duration::from_secs(60);
+        let layout_seen = cfg.layout_time;
         Core {
             cfg: RwLock::new(cfg),
             mode: AtomicU8::new(LOCAL),
@@ -105,6 +115,9 @@ impl Core {
             replay_cv: Condvar::new(),
             st: Mutex::new(State {
                 peer: None,
+                placement: None,
+                layout_seen,
+                layout_synced: 0,
                 side: None,
                 active_side: Side::Right,
                 push: 0.0,
@@ -187,9 +200,11 @@ impl Core {
                             return false;
                         }
                         let ds = self.displays(&mut st);
-                        let candidates = match st.side {
-                            Some(s) => vec![s],
-                            None => vec![Side::Left, Side::Right],
+                        let placement = st.placement;
+                        let candidates = match (placement, st.side) {
+                            (Some(p), _) => vec![p.side],
+                            (None, Some(s)) => vec![s],
+                            (None, None) => vec![Side::Left, Side::Right],
                         };
                         let outward = |side: Side| match side {
                             Side::Left => -dx,
@@ -201,18 +216,24 @@ impl Core {
                         // push against the edge can show up as a move of zero. Sliding along the edge
                         // (dy != 0) is not a push.
                         let clamped_push = cfg!(windows) && dx == 0.0 && dy == 0.0;
+                        // With an arrangement, only the stretch of edge that touches the other
+                        // computer's screen leads there.
+                        let touches = |s: Side| placement.is_none_or(|p| p.contains(geom::along(x, y, s)));
                         let hit = candidates.into_iter().find(|&s| {
-                            (outward(s) > 0.0 || clamped_push) && geom::at_edge(&ds, x, y, s)
+                            (outward(s) > 0.0 || clamped_push) && geom::at_edge(&ds, x, y, s) && touches(s)
                         });
                         let Some(side) = hit else {
                             st.push = 0.0;
                             return false;
                         };
                         st.push += if clamped_push { 8.0 } else { outward(side) };
-                        if st.side.is_none() && st.push < AUTO_PUSH {
+                        if placement.is_none() && st.side.is_none() && st.push < AUTO_PUSH {
                             return false;
                         }
-                        let ratio = geom::ratio_on_side(&ds, x, y, side);
+                        let ratio = match placement {
+                            Some(p) => ((geom::along(x, y, side) - p.offset) / p.length).clamp(0.0, 1.0),
+                            None => geom::ratio_on_side(&ds, x, y, side),
+                        };
                         self.mode.store(REMOTE, Ordering::SeqCst);
                         st.push = 0.0;
                         st.local_buttons.clear();
@@ -350,8 +371,14 @@ impl Core {
                 let ds = self.displays(&mut st);
                 let cur = st.cur;
                 let p = (cur.0 + dx, cur.1 + dy);
+                // Leave only where the screens touch in the arrangement.
+                let touches = st.placement.is_none_or(|pl| pl.side != side || pl.contains(geom::along(cur.0, cur.1, side)));
+                let step = match geom::step(&ds, cur, p, side) {
+                    None if !touches => Some(geom::clamp_near(&ds, cur, p)),
+                    s => s,
+                };
                 // Don't hand back mid-drag; the drag would be cut in half.
-                match geom::step(&ds, cur, p, side) {
+                match step {
                     None if st.injected_buttons.is_empty() => {
                         let ratio = geom::ratio_on_side(&ds, cur.0, cur.1, side);
                         self.release_injected(&mut st);
@@ -397,6 +424,12 @@ impl Core {
                 }
                 platform::inject_key(hid, down);
             }
+            Msg::Layout { layout, time } => {
+                if time > self.cfg.read().unwrap().layout_time {
+                    st.layout_synced = time;
+                    save_layout(layout, time);
+                }
+            }
             Msg::Clipboard { text } => {
                 if self.cfg.read().unwrap().clipboard {
                     st.last_clipboard = Some(text.clone());
@@ -417,6 +450,17 @@ impl Core {
         *self.delay.lock().unwrap() = Delay { min_cur: i64::MAX, min_prev: i64::MAX, window_start: Instant::now() };
         let mut st = self.st.lock().unwrap();
         st.side = self.cfg.read().unwrap().peer_side.or(peer.side_hint.map(Side::opposite));
+        // Both computers keep the most recent arrangement.
+        let (mine, my_time) = {
+            let c = self.cfg.read().unwrap();
+            (c.layout.clone(), c.layout_time)
+        };
+        if peer.layout_time > my_time {
+            st.layout_synced = peer.layout_time;
+            save_layout(peer.layout.clone(), peer.layout_time);
+        } else if my_time > peer.layout_time {
+            self.send(Msg::Layout { layout: mine, time: my_time });
+        }
         info!("Connected to {} ({:?})", peer.name, peer.os);
         match st.side {
             Some(s) => info!(
@@ -430,16 +474,46 @@ impl Core {
             ),
         }
         st.peer = Some(peer);
+        self.update_placement(&mut st);
     }
 
     /// Apply settings changed while running (from the settings window).
     pub fn reload(&self, cfg: Config) {
         let side = cfg.peer_side;
+        let (layout, time) = (cfg.layout.clone(), cfg.layout_time);
         *self.cfg.write().unwrap() = cfg;
         let mut st = self.st.lock().unwrap();
         if st.peer.is_some() {
             let hint = st.peer.as_ref().and_then(|p| p.side_hint);
             st.side = side.or(hint.map(Side::opposite));
+        }
+        // Arranged here: tell the other computer (unless it came from there).
+        if time != st.layout_seen {
+            st.layout_seen = time;
+            if time != st.layout_synced && st.peer.is_some() {
+                self.send(Msg::Layout { layout, time });
+            }
+        }
+        self.update_placement(&mut st);
+    }
+
+    /// Where the other computer sits, in this computer's (native) coordinates.
+    fn update_placement(&self, st: &mut State) {
+        let cfg = self.cfg.read().unwrap();
+        st.placement = cfg.layout.as_ref().and_then(|l| {
+            let p = l.placement();
+            let p = if l.owner == cfg.id {
+                p
+            } else {
+                // Arranged on the other computer: see it from here.
+                let owner = geom::union(&l.owner_screens)?;
+                let mine = geom::union(&platform::logical_displays())?;
+                p.mirrored(&owner, &mine)
+            };
+            Some(p.scaled(platform::pointer_scale()))
+        });
+        if let Some(p) = st.placement {
+            st.side = Some(p.side);
         }
     }
 
@@ -453,6 +527,8 @@ impl Core {
             side: st.side.map(|s| format!("{s:?}").to_lowercase()),
             controlling: mode == REMOTE,
             controlled: mode == CONTROLLED,
+            screens: platform::logical_displays(),
+            peer_screens: st.peer.as_ref().map(|p| p.screens.clone()).unwrap_or_default(),
             ..Default::default()
         }
     }
@@ -476,7 +552,12 @@ impl Core {
     /// Controller side: stop forwarding and put the cursor back at our edge.
     fn come_home(&self, st: &mut State, ratio: f64) {
         let ds = self.displays(st);
-        let p = geom::entry_point(&ds, st.active_side, ratio, 2.0);
+        let p = match st.placement {
+            Some(pl) if pl.side == st.active_side => {
+                geom::entry_point_at(&ds, pl.side, pl.offset + ratio * pl.length, 2.0)
+            }
+            _ => geom::entry_point(&ds, st.active_side, ratio, 2.0),
+        };
         self.mode.store(LOCAL, Ordering::SeqCst);
         st.last_switch = Instant::now();
         st.forwarded_keys.clear();
@@ -522,4 +603,12 @@ impl Core {
             }
         });
     }
+}
+
+/// Store an arrangement that came from the other computer; the config watcher applies it.
+fn save_layout(layout: Option<crate::config::Layout>, time: u64) {
+    let mut c = Config::load();
+    c.layout = layout;
+    c.layout_time = time;
+    c.save();
 }

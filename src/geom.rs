@@ -1,8 +1,10 @@
 //! Screen geometry: edge detection, entry points and clamping across multiple displays.
 
+use serde::{Deserialize, Serialize};
+
 use crate::proto::Side;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -45,7 +47,7 @@ fn display_for(ds: &[Rect], x: f64, y: f64) -> Option<Rect> {
     })
 }
 
-fn union(ds: &[Rect]) -> Option<Rect> {
+pub fn union(ds: &[Rect]) -> Option<Rect> {
     let first = *ds.first()?;
     let (mut x0, mut y0, mut x1, mut y1) = (first.x, first.y, first.right(), first.bottom());
     for d in ds {
@@ -124,6 +126,69 @@ pub fn entry_point(ds: &[Rect], side: Side, ratio: f64, inset: f64) -> (f64, f64
     d.clamp(p.0, p.1)
 }
 
+/// Start and length of a rectangle along the axis that runs along `side`.
+pub fn along_extent(r: &Rect, side: Side) -> (f64, f64) {
+    match side {
+        Side::Left | Side::Right => (r.y, r.h),
+        Side::Top | Side::Bottom => (r.x, r.w),
+    }
+}
+
+/// The coordinate along `side`'s axis.
+pub fn along(x: f64, y: f64, side: Side) -> f64 {
+    match side {
+        Side::Left | Side::Right => y,
+        Side::Top | Side::Bottom => x,
+    }
+}
+
+/// Where the other computer sits: on `side`, covering `offset .. offset + length` along that
+/// edge, in this computer's coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placement {
+    pub side: Side,
+    pub offset: f64,
+    pub length: f64,
+}
+
+impl Placement {
+    pub fn contains(&self, along: f64) -> bool {
+        along >= self.offset && along < self.offset + self.length
+    }
+
+    /// The same arrangement seen from the other computer. `mine` is the union of the screens
+    /// this placement is expressed for, `theirs` the other computer's union (in its own units).
+    pub fn mirrored(&self, mine: &Rect, theirs: &Rect) -> Placement {
+        let (m0, mlen) = along_extent(mine, self.side);
+        let (t0, tlen) = along_extent(theirs, self.side);
+        // `length` of my units spans their whole screen: my units per their unit.
+        let s = self.length / tlen;
+        Placement { side: self.side.opposite(), offset: t0 + (m0 - self.offset) / s, length: mlen / s }
+    }
+
+    pub fn scaled(&self, k: f64) -> Placement {
+        Placement { side: self.side, offset: self.offset * k, length: self.length * k }
+    }
+}
+
+/// Entry point at a given coordinate along `side` (clamped onto a display), `inset` inside the edge.
+pub fn entry_point_at(ds: &[Rect], side: Side, at: f64, inset: f64) -> (f64, f64) {
+    let Some(u) = union(ds) else { return (0.0, 0.0) };
+    let (u0, ulen) = along_extent(&u, side);
+    entry_point(ds, side, ((at - u0) / (ulen - 1.0).max(1.0)).clamp(0.0, 1.0), inset)
+}
+
+/// Clamp a point onto the display nearest to `cur`.
+pub fn clamp_near(ds: &[Rect], cur: (f64, f64), p: (f64, f64)) -> (f64, f64) {
+    if in_any(ds, p.0, p.1) {
+        return p;
+    }
+    match display_for(ds, cur.0, cur.1) {
+        Some(d) => d.clamp(p.0, p.1),
+        None => cur,
+    }
+}
+
 /// Moving from `cur` to `p`: `None` means the cursor left through `side`,
 /// otherwise the (clamped) new position.
 pub fn step(ds: &[Rect], cur: (f64, f64), p: (f64, f64), side: Side) -> Option<(f64, f64)> {
@@ -188,6 +253,23 @@ mod tests {
         let ds = [r(0.0, 0.0, 1920.0, 1080.0), r(-1920.0, 0.0, 1920.0, 1080.0)];
         assert_eq!(entry_point(&ds, Side::Left, 0.5, 1.0).0, -1919.0);
         assert_eq!(entry_point(&ds, Side::Right, 0.5, 1.0).0, 1918.0);
+    }
+
+    #[test]
+    fn mirror_roundtrip() {
+        // Mac 1512x982 + iPad to its right; PC (1707x1067 logical) placed right of the iPad,
+        // top-aligned with it.
+        let mac = r(0.0, 0.0, 2826.0, 985.0);
+        let pc = r(0.0, 0.0, 1707.0, 1067.0);
+        let p = Placement { side: Side::Right, offset: 0.0, length: 1067.0 };
+        let m = p.mirrored(&mac, &pc);
+        assert_eq!(m.side, Side::Left);
+        assert!((m.offset - 0.0).abs() < 1e-9 && (m.length - 985.0).abs() < 1e-9);
+        let back = m.mirrored(&pc, &mac);
+        assert!((back.offset - p.offset).abs() < 1e-9 && (back.length - p.length).abs() < 1e-9);
+        // Shifted down by 100 on the Mac: the Mac appears 100 higher on the PC.
+        let p2 = Placement { offset: 100.0, ..p };
+        assert!((p2.mirrored(&mac, &pc).offset + 100.0).abs() < 1e-9);
     }
 
     #[test]

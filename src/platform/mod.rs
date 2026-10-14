@@ -17,6 +17,12 @@ pub fn core() -> &'static Core {
     CORE.get().expect("core not installed")
 }
 
+/// This computer's screens in logical units (points), comparable across computers.
+pub fn logical_displays() -> Vec<crate::geom::Rect> {
+    let k = pointer_scale();
+    displays().into_iter().map(|d| crate::geom::Rect { x: d.x / k, y: d.y / k, w: d.w / k, h: d.h / k }).collect()
+}
+
 /// Marks events we inject so our own hooks let them through.
 #[allow(dead_code)]
 const MAGIC: i64 = 0x4D41_4749;

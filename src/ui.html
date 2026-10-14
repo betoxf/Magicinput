@@ -35,9 +35,6 @@
   .row + .row { border-top: .5px solid var(--line); }
   .row .label { display: flex; flex-direction: column; }
   .sub { color: var(--muted); font-size: 11.5px; }
-  .seg { display: flex; background: var(--seg); border-radius: 7px; padding: 2px; width: 100%; }
-  .seg button { flex: 1; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; padding: 4px 0; border-radius: 5px; }
-  .seg button.on { background: var(--seg-on); box-shadow: 0 1px 2px rgba(0,0,0,.15); font-weight: 500; }
   .stack { flex-direction: column; align-items: stretch; gap: 6px; }
   .switch { position: relative; width: 34px; height: 20px; flex: none; }
   .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
@@ -55,6 +52,18 @@
     border: .5px solid var(--line); background: var(--input); color: var(--text); border-radius: 6px; padding: 5px 8px; width: 112px; outline: none; }
   input[type=text]:focus { box-shadow: 0 0 0 2px var(--accent); }
   .nowrap { white-space: nowrap; }
+  .h2row { display: flex; justify-content: space-between; align-items: center; }
+  .pill { border: 0; border-radius: 10px; padding: 2px 9px; font-family: inherit; font-size: 10.5px; font-weight: 600;
+    background: var(--seg); color: var(--muted); text-transform: none; letter-spacing: .03em; }
+  .pill.on { background: var(--accent); color: var(--accent-text); }
+  #arrange { position: relative; height: 150px; margin: 4px 0 2px; touch-action: none; }
+  .scr { position: absolute; border-radius: 5px; background: var(--seg); box-shadow: inset 0 0 0 1px var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--muted); overflow: hidden; }
+  .peer { position: absolute; border-radius: 5px; color: #fff; font-size: 10.5px; font-weight: 600; cursor: grab;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 2px; overflow: hidden;
+    background: linear-gradient(135deg, #5b3fd9, #9b5cf6); box-shadow: 0 2px 8px rgba(70,40,180,.35); transition: left .12s, top .12s; }
+  .peer.auto { background: transparent; color: var(--accent); box-shadow: none; border: 1.5px dashed var(--accent); }
+  .peer.drag { cursor: grabbing; transition: none; opacity: .92; }
   footer { margin-top: 14px; text-align: center; color: var(--muted); font-size: 11px; }
   kbd { font: inherit; }
 </style>
@@ -79,12 +88,10 @@
     </div>
   </header>
 
-  <h2>Other computer</h2>
+  <h2 class="h2row"><span>Arrangement</span><button class="pill" id="auto">Auto</button></h2>
   <div class="card">
     <div class="row stack">
-      <div class="seg" id="side">
-        <button data-v="auto">Auto</button><button data-v="left">Left</button><button data-v="right">Right</button><button data-v="top">Above</button><button data-v="bottom">Below</button>
-      </div>
+      <div id="arrange"></div>
       <div class="sub" id="sideHint"></div>
     </div>
   </div>
@@ -116,7 +123,7 @@
   const $ = id => document.getElementById(id);
   let first = true;
 
-  document.querySelectorAll('#side button').forEach(b => b.onclick = () => { send('side', b.dataset.v); });
+  $('auto').onclick = () => send('auto');
   ['mouse_speed', 'scroll_speed'].forEach(id => {
     $(id).oninput = () => $(id + '_v').textContent = (+$(id).value).toFixed(2) + '×';
     $(id).onchange = () => send(id, +$(id).value);
@@ -128,8 +135,80 @@
   $('pair').onclick = () => { send('pair', $('pairInput').value); $('pairInput').value = ''; $('pair').disabled = true; };
   $('pairInput').onkeydown = e => { if (e.key === 'Enter' && !$('pair').disabled) $('pair').click(); };
 
-  const sideHint = { auto: 'Push firmly past the left or right edge to switch.', left: 'It’s to the left: push past the left edge.',
-    right: 'It’s to the right: push past the right edge.', top: 'It’s above: push past the top edge.', bottom: 'It’s below: push past the bottom edge.' };
+  // ---- Arrangement: this computer's screens (grey) and the other computer (purple), drawn to
+  // scale. Drag the purple one along any outer edge; it snaps to edges and alignments.
+  let S = null, drag = null, view = null;
+  const area = $('arrange');
+  const union = rs => { const x0 = Math.min(...rs.map(r => r.x)), y0 = Math.min(...rs.map(r => r.y));
+    return { x: x0, y: y0, w: Math.max(...rs.map(r => r.x + r.w)) - x0, h: Math.max(...rs.map(r => r.y + r.h)) - y0 }; };
+  const horiz = side => side === 'left' || side === 'right';
+
+  // Rectangle of the other computer for a placement, in this computer's coordinates.
+  function peerRect(p, U, size) {
+    const along = p.length, across = horiz(p.side) ? size.w * along / size.h : size.h * along / size.w;
+    if (p.side === 'right') return { x: U.x + U.w, y: p.offset, w: across, h: along };
+    if (p.side === 'left') return { x: U.x - across, y: p.offset, w: across, h: along };
+    if (p.side === 'bottom') return { x: p.offset, y: U.y + U.h, w: along, h: across };
+    return { x: p.offset, y: U.y - across, w: along, h: across };
+  }
+
+  // Nearest placement for a block centred at (cx, cy), snapped to edge alignments.
+  function placementAt(cx, cy, U, screens, size) {
+    const dx = (cx - (U.x + U.w / 2)) / U.w, dy = (cy - (U.y + U.h / 2)) / U.h;
+    const side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
+    const length = horiz(side) ? size.h : size.w;
+    const u0 = horiz(side) ? U.y : U.x, ulen = horiz(side) ? U.h : U.w;
+    const minOverlap = Math.min(length, ulen) * 0.15;
+    let offset = (horiz(side) ? cy : cx) - length / 2;
+    offset = Math.max(u0 - length + minOverlap, Math.min(u0 + ulen - minOverlap, offset));
+    // Snap: line up the start, end or centre with any of this computer's screens.
+    const snaps = [];
+    for (const r of screens) { const a0 = horiz(side) ? r.y : r.x, alen = horiz(side) ? r.h : r.w;
+      snaps.push(a0, a0 + alen - length, a0 + alen / 2 - length / 2); }
+    const tol = ulen * 0.04;
+    for (const sp of snaps) if (Math.abs(sp - offset) < tol) { offset = sp; break; }
+    return { side, offset, length };
+  }
+
+  function drawArrange() {
+    if (!S || !S.screens.length) { area.innerHTML = ''; return; }
+    const U = union(S.screens), size = S.peer_size;
+    const p = drag ? drag.p : (S.placement || { side: 'right', offset: U.y + U.h / 2 - size.h / 2, length: size.h });
+    const P = peerRect(p, U, size), all = union([...S.screens, P]);
+    // Fit everything into the area with some padding; keep the scale steady while dragging.
+    if (!drag || !view) {
+      const pad = 0.12, W = area.clientWidth, H = area.clientHeight;
+      const ext = { x: all.x - all.w * pad, y: all.y - all.h * pad, w: all.w * (1 + 2 * pad), h: all.h * (1 + 2 * pad) };
+      const k = Math.min(W / ext.w, H / ext.h);
+      view = { k, ox: (W - ext.w * k) / 2 - ext.x * k, oy: (H - ext.h * k) / 2 - ext.y * k };
+    }
+    const px = r => `left:${r.x * view.k + view.ox}px;top:${r.y * view.k + view.oy}px;width:${r.w * view.k - 2}px;height:${r.h * view.k - 2}px`;
+    let html = S.screens.map(r => `<div class="scr" style="${px(r)}">${r.name || ''}</div>`).join('');
+    const label = S.peer || (S.os === 'mac' ? 'PC' : 'Mac');
+    html += `<div class="peer${S.placement || drag ? '' : ' auto'}${drag ? ' drag' : ''}" id="peerBlock" style="${px(P)}">${label}</div>`;
+    area.innerHTML = html;
+    $('peerBlock').onpointerdown = e => {
+      e.preventDefault();
+      area.setPointerCapture(e.pointerId);
+      const b = $('peerBlock').getBoundingClientRect();
+      drag = { p, grabX: e.clientX - (b.left + b.width / 2), grabY: e.clientY - (b.top + b.height / 2) };
+      drawArrange();
+    };
+  }
+  area.onpointermove = e => {
+    if (!drag || !S) return;
+    const a = area.getBoundingClientRect();
+    const cx = (e.clientX - drag.grabX - a.left - view.ox) / view.k, cy = (e.clientY - drag.grabY - a.top - view.oy) / view.k;
+    drag.p = placementAt(cx, cy, union(S.screens), S.screens, S.peer_size);
+    drawArrange();
+  };
+  area.onpointerup = () => {
+    if (!drag) return;
+    const p = drag.p; drag = null; view = null;
+    S.placement = p; drawArrange();
+    send('arrange', { side: p.side, offset: p.offset });
+  };
+  window.onresize = () => { view = null; drawArrange(); };
 
   window.render = s => {
     const mac = s.os === 'mac', other = mac ? 'PC' : 'Mac';
@@ -139,8 +218,12 @@
     else { dot += ' ok'; text = s.controlling ? 'Controlling ' + s.peer : s.controlled ? s.peer + ' is in control' : 'Connected to ' + s.peer; }
     $('dot').className = dot; $('status').textContent = text;
 
-    document.querySelectorAll('#side button').forEach(b => b.classList.toggle('on', b.dataset.v === s.side));
-    $('sideHint').textContent = sideHint[s.side] || '';
+    S = s;
+    if (!drag) { view = null; drawArrange(); }
+    $('auto').classList.toggle('on', !s.placement);
+    $('sideHint').textContent = s.placement
+      ? `The pointer crosses where the screens touch (${s.placement.side} edge). Drag to rearrange.`
+      : 'Auto: push firmly past the left or right edge. Drag the screen to pin where it is.';
     for (const id of ['mouse_speed', 'scroll_speed']) {
       if (document.activeElement !== $(id)) { $(id).value = s[id]; $(id + '_v').textContent = (+s[id]).toFixed(2) + '×'; }
     }

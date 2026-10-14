@@ -3,7 +3,27 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::geom::{Placement, Rect};
 use crate::proto::Side;
+
+/// Where the other computer's screen sits, as arranged in the settings window. It's kept in the
+/// coordinates of the computer it was arranged on (`owner`); the other one mirrors it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Layout {
+    pub side: Side,
+    pub offset: f64,
+    pub length: f64,
+    /// Id of the computer whose screen coordinates these are.
+    pub owner: String,
+    /// That computer's screens (logical units) when it was arranged.
+    pub owner_screens: Vec<Rect>,
+}
+
+impl Layout {
+    pub fn placement(&self) -> Placement {
+        Placement { side: self.side, offset: self.offset, length: self.length }
+    }
+}
 
 pub const DEFAULT_PORT: u16 = 24842;
 const CODE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -32,6 +52,10 @@ pub struct Config {
     pub clipboard: bool,
     /// Show the icon in the menu bar (Mac) / notification area (Windows).
     pub show_tray: bool,
+    /// Arrangement from the settings window; `None` = auto / `peer_side`.
+    pub layout: Option<Layout>,
+    /// When `layout` last changed (unix ms), so both computers keep the newest.
+    pub layout_time: u64,
 }
 
 impl Default for Config {
@@ -48,6 +72,8 @@ impl Default for Config {
             scroll_speed: 1.0,
             clipboard: true,
             show_tray: false,
+            layout: None,
+            layout_time: 0,
         }
     }
 }
@@ -143,6 +169,25 @@ fn hostname() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layout_survives_save_and_load() {
+        let c = Config {
+            layout: Some(Layout {
+                side: Side::Right,
+                offset: -40.5,
+                length: 1067.0,
+                owner: "abc".into(),
+                owner_screens: vec![Rect { x: 0.0, y: 0.0, w: 1512.0, h: 982.0 }],
+            }),
+            layout_time: 42,
+            ..Default::default()
+        };
+        let text = toml::to_string_pretty(&c).unwrap();
+        let back: Config = toml::from_str(&text).unwrap();
+        assert_eq!(back.layout, c.layout);
+        assert_eq!(back.layout_time, 42);
+    }
 
     #[test]
     fn codes_normalize_the_same() {

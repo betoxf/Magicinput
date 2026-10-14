@@ -16,6 +16,9 @@ pub struct Status {
     pub side: Option<String>,
     pub controlling: bool,
     pub controlled: bool,
+    /// Screens of this computer and of the other one, in logical units.
+    pub screens: Vec<crate::geom::Rect>,
+    pub peer_screens: Vec<crate::geom::Rect>,
     /// Unix seconds of the last write; the service refreshes it every few seconds.
     pub updated: u64,
 }

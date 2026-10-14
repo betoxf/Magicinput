@@ -2,7 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const PROTOCOL_VERSION: u32 = 2;
+use crate::config::Layout;
+use crate::geom::Rect;
+
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Which edge of *this* computer's screens the other computer sits on.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,7 +77,13 @@ pub enum Msg {
         version: u32,
         /// The sender's configured side, so the other end can infer its own.
         peer_side: Option<Side>,
+        /// The sender's screens, in logical units (points).
+        screens: Vec<Rect>,
+        layout: Option<Layout>,
+        layout_time: u64,
     },
+    /// The arrangement changed on the sender.
+    Layout { layout: Option<Layout>, time: u64 },
     /// Controller -> target: the cursor crossed over the controller's `side` edge;
     /// `ratio` is the position along that edge (0..1).
     Enter { ratio: f64, side: Side },
