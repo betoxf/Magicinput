@@ -2,6 +2,13 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [0.1.1] - 2026-10-14
+
+### Fixed
+
+- Using the controlled computer's own mouse or keyboard now reclaims control, so its pointer can cross back to the other computer. A deliberate movement (more than 24 points within half a second), click, or key press brings control home; small accidental mouse movements do not.
+- Release binaries remap build paths to remove the build machine's username and local source paths.
+
 ## [0.1.0] - 2026-10-14
 
 First public release.
@@ -19,3 +26,5 @@ First public release.
 - Signed and notarized universal macOS app; Windows build with its own icon.
 
 [0.1.0]: https://github.com/betoxf/magicinput/releases/tag/v0.1.0
+
+[0.1.1]: https://github.com/betoxf/magicinput/releases/tag/v0.1.1

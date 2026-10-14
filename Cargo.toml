@@ -1,6 +1,6 @@
 [package]
 name = "magicinput"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Share one keyboard and mouse between a Mac and a Windows PC"
 license = "MIT"
