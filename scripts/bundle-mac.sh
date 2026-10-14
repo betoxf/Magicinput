@@ -3,6 +3,8 @@
 # or MAGICINPUT_SIGN_IDENTITY, or ad-hoc ("-") as a fallback.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Keep this machine's paths (and username) out of the binaries.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=~ --remap-path-prefix=$PWD=."
 
 # UNIVERSAL=1 builds one binary for both Apple silicon and Intel Macs (used for releases).
 if [ "${UNIVERSAL:-0}" = 1 ]; then

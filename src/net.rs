@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn only_local_network() {
         assert!(same_lan("127.0.0.1".parse().unwrap()));
-        assert!(!same_lan("100.75.213.9".parse().unwrap())); // Tailscale
+        assert!(!same_lan("100.100.1.1".parse().unwrap())); // Tailscale range
         assert!(!same_lan("8.8.8.8".parse().unwrap()));
     }
 

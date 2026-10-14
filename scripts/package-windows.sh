@@ -3,6 +3,8 @@
 # Copy that folder to the PC and run `magicinput.exe install` from an administrator terminal.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Keep this machine's paths (and username) out of the binaries.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=~ --remap-path-prefix=$PWD=."
 cargo build --release --target x86_64-pc-windows-gnu
 T=target/x86_64-pc-windows-gnu/release
 rm -rf dist/windows && mkdir -p dist/windows
