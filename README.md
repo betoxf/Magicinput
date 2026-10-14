@@ -28,7 +28,7 @@ magicinput.exe pair K7QP-3MZD     # the code the Mac shows (first line of its lo
 magicinput.exe install
 ```
 
-`install` copies both to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every
+`install` copies them to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every
 login (no window, with admin rights so it also works over admin apps), and allows it through the
 firewall on private networks.
 
