@@ -363,11 +363,12 @@
     // First paint done: tell the app our height so it can attach and show the panel, then fade in.
     if (!ready) {
       ready = true;
-      // (Timers, not animation frames: the window is still hidden, so frames don't run yet.)
-      setTimeout(() => {
+      // Measure once fonts are in (they change the height). Timers, not animation frames: the
+      // window is still hidden, so frames don't run yet.
+      document.fonts.ready.then(() => setTimeout(() => {
         send('ready', $('panel').offsetHeight);
         setTimeout(() => $('panel').classList.add('in'), 40);
-      }, 0);
+      }, 0));
     }
   };
 </script>
