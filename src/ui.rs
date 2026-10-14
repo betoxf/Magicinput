@@ -403,30 +403,30 @@ fn make_tray() -> Option<Tray> {
         .with_menu_on_left_click(false)
         .build()
         .ok()?;
+    #[cfg(target_os = "macos")]
+    apply_symbol_icon(&icon);
     status.set_text(status_line(&status::read()));
     Some(Tray { _icon: icon, status })
 }
 
 fn load_icon() -> Option<Icon> {
-    #[cfg(target_os = "macos")]
-    if let Some(icon) = symbol_icon_png().and_then(|png| decode_icon(&png)) {
-        return Some(icon);
-    }
     decode_icon(TRAY_PNG)
 }
 
-/// The Mac menu bar icon, drawn by macOS from SF Symbols so it's as sharp as the system's own
-/// icons: two screens (`rectangle.on.rectangle`) with the pointer crossing and a sparkle.
-/// (SF Symbols are only for Apple platforms; Windows uses the bundled tray icon.)
+/// Give the Mac menu bar icon a live vector image made of SF Symbols, so macOS draws it at the
+/// screen's exact resolution like its own icons: two screens (`rectangle.on.rectangle`) with
+/// the pointer crossing and a sparkle. (SF Symbols are for Apple platforms only; Windows and
+/// older Macs keep the bundled icon.)
 #[cfg(target_os = "macos")]
-fn symbol_icon_png() -> Option<Vec<u8>> {
-    use objc2::AllocAnyThread;
-    use objc2_app_kit::{
-        NSBitmapImageFileType, NSBitmapImageRep, NSCompositingOperation, NSDeviceRGBColorSpace, NSGraphicsContext, NSImage,
-        NSImageSymbolConfiguration,
-    };
-    use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
+fn apply_symbol_icon(tray: &TrayIcon) -> Option<()> {
+    use block2::RcBlock;
+    use objc2::MainThreadMarker;
+    use objc2::runtime::Bool;
+    use objc2_app_kit::{NSCompositingOperation, NSImage, NSImageSymbolConfiguration};
+    use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
+    let mtm = MainThreadMarker::new()?;
+    let button = tray.ns_status_item()?.button(mtm)?;
     let symbol = |name: &str, size: f64, weight: f64| {
         let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(name), None)?;
         image.imageWithSymbolConfiguration(&NSImageSymbolConfiguration::configurationWithPointSize_weight(size, weight))
@@ -435,41 +435,28 @@ fn symbol_icon_png() -> Option<Vec<u8>> {
     let screens = symbol("rectangle.on.rectangle", 12.5, 0.0)?;
     let pointer = symbol("cursorarrow", 8.5, 0.3)?;
     let sparkle = symbol("sparkle", 5.5, 0.4)?;
+    let (w, h) = (25.0, 18.0);
 
-    let (w, h, scale) = (25.0, 18.0, 2.0);
-    let rep = unsafe {
-        NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
-            NSBitmapImageRep::alloc(),
-            std::ptr::null_mut(),
-            (w * scale) as isize,
-            (h * scale) as isize,
-            8,
-            4,
-            true,
-            false,
-            NSDeviceRGBColorSpace,
-            0,
-            0,
-        )
-    }?;
-    rep.setSize(NSSize::new(w, h));
-    let ctx = NSGraphicsContext::graphicsContextWithBitmapImageRep(&rep)?;
-    NSGraphicsContext::saveGraphicsState_class();
-    NSGraphicsContext::setCurrentContext(Some(&ctx));
-    let draw = |image: &NSImage, x: f64, y: f64, op: NSCompositingOperation, grow: f64| {
-        let s = image.size();
-        let rect = NSRect::new(NSPoint::new(x - grow, y - grow), NSSize::new(s.width + 2.0 * grow, s.height + 2.0 * grow));
-        image.drawInRect_fromRect_operation_fraction(rect, NSRect::ZERO, op, 1.0);
-    };
-    let ss = screens.size();
-    draw(&screens, w - ss.width - 0.5, (h - ss.height) / 2.0, NSCompositingOperation::SourceOver, 0.0);
-    // Cut a thin gap around the pointer so it reads clearly over the screens.
-    draw(&pointer, 4.2, 0.4, NSCompositingOperation::DestinationOut, 1.3);
-    draw(&pointer, 4.2, 0.4, NSCompositingOperation::SourceOver, 0.0);
-    draw(&sparkle, 0.4, h - sparkle.size().height - 2.2, NSCompositingOperation::SourceOver, 0.0);
-    NSGraphicsContext::restoreGraphicsState_class();
-    let png = unsafe { rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new()) }?;
-    Some(png.to_vec())
+    // Runs whenever macOS draws the icon, at whatever resolution it needs. Positions are on
+    // whole points so edges land on pixels.
+    let handler = RcBlock::new(move |_: NSRect| -> Bool {
+        let draw = |image: &NSImage, x: f64, y: f64, op: NSCompositingOperation, grow: f64| {
+            let s = image.size();
+            let rect = NSRect::new(NSPoint::new(x - grow, y - grow), NSSize::new(s.width + 2.0 * grow, s.height + 2.0 * grow));
+            image.drawInRect_fromRect_operation_fraction(rect, NSRect::ZERO, op, 1.0);
+        };
+        let ss = screens.size();
+        draw(&screens, (w - ss.width).round(), ((h - ss.height) / 2.0).round(), NSCompositingOperation::SourceOver, 0.0);
+        // A thin gap around the pointer so it reads clearly over the screens.
+        draw(&pointer, 4.0, 1.0, NSCompositingOperation::DestinationOut, 1.0);
+        draw(&pointer, 4.0, 1.0, NSCompositingOperation::SourceOver, 0.0);
+        draw(&sparkle, 0.0, (h - sparkle.size().height - 1.0).round(), NSCompositingOperation::SourceOver, 0.0);
+        Bool::YES
+    });
+    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(w, h), false, &handler);
+    image.setTemplate(true);
+    button.setImage(Some(&image));
+    Some(())
 }
 
 fn decode_icon(png: &[u8]) -> Option<Icon> {
