@@ -433,7 +433,7 @@ fn apply_symbol_icon(tray: &TrayIcon) -> Option<()> {
     };
     // Font weights: regular 0, semibold 0.3, bold 0.4.
     let screens = symbol("rectangle.on.rectangle", 12.5, 0.0)?;
-    let pointer = symbol("cursorarrow", 8.5, 0.3)?;
+    let pointer = symbol("cursorarrow", 7.0, 0.3)?;
     let sparkle = symbol("sparkle", 5.5, 0.4)?;
     let (w, h) = (25.0, 18.0);
 
@@ -448,8 +448,8 @@ fn apply_symbol_icon(tray: &TrayIcon) -> Option<()> {
         let ss = screens.size();
         draw(&screens, (w - ss.width).round(), ((h - ss.height) / 2.0).round(), NSCompositingOperation::SourceOver, 0.0);
         // A thin gap around the pointer so it reads clearly over the screens.
-        draw(&pointer, 4.0, 1.0, NSCompositingOperation::DestinationOut, 1.0);
-        draw(&pointer, 4.0, 1.0, NSCompositingOperation::SourceOver, 0.0);
+        draw(&pointer, 5.0, 1.0, NSCompositingOperation::DestinationOut, 1.0);
+        draw(&pointer, 5.0, 1.0, NSCompositingOperation::SourceOver, 0.0);
         draw(&sparkle, 0.0, (h - sparkle.size().height - 1.0).round(), NSCompositingOperation::SourceOver, 0.0);
         Bool::YES
     });
