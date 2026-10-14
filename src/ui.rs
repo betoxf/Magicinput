@@ -10,12 +10,12 @@ use std::process::Command;
 use std::time::Duration;
 
 use serde_json::{Value, json};
-use tao::dpi::LogicalSize;
+use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use wry::{WebView, WebViewBuilder};
 
 use crate::config::{self, Config, Layout};
@@ -26,6 +26,8 @@ use crate::{platform, service, status};
 /// Local port a running window listens on, so opening the app again just brings it forward.
 const UI_PORT: u16 = 24843;
 const HTML: &str = include_str!("ui.html");
+/// Width of the panel, in points.
+const PANEL_W: f64 = 360.0;
 #[cfg(target_os = "macos")]
 const TRAY_PNG: &[u8] = include_bytes!("../assets/menubar.png");
 #[cfg(not(target_os = "macos"))]
@@ -33,6 +35,8 @@ const TRAY_PNG: &[u8] = include_bytes!("../assets/tray.png");
 
 enum UserEvent {
     Show,
+    /// Left click on the menu bar / tray icon, with where the icon is.
+    TrayClick(tray_icon::Rect),
     Ipc(String),
     Menu(MenuId),
     Tick,
@@ -98,6 +102,14 @@ pub fn run(background: bool) {
     }
     {
         let p = proxy.clone();
+        TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
+            if let TrayIconEvent::Click { rect, button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                let _ = p.send_event(UserEvent::TrayClick(rect));
+            }
+        }));
+    }
+    {
+        let p = proxy.clone();
         MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
             let _ = p.send_event(UserEvent::Menu(e.id));
         }));
@@ -120,6 +132,13 @@ pub fn run(background: bool) {
     let mut tray: Option<Tray> = None;
     let mut login = service::installed();
     let mut names: Vec<(Rect, String)> = Vec::new();
+    // Where to attach the panel (the icon), whether it's on screen yet, and when it last closed.
+    let mut anchor: Option<tray_icon::Rect> = None;
+    let mut shown = false;
+    let mut height = 560.0;
+    // The current panel has finished loading once (so it can be re-shown as is).
+    let mut loaded = false;
+    let mut closed_at = std::time::Instant::now() - Duration::from_secs(5);
 
     event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::Wait;
@@ -133,7 +152,21 @@ pub fn run(background: bool) {
             }
             #[cfg(target_os = "macos")]
             Event::Reopen { .. } => show = true,
-            Event::UserEvent(UserEvent::Show) => show = true,
+            Event::UserEvent(UserEvent::Show) => {
+                anchor = None;
+                show = true;
+            }
+            // The icon toggles the panel. A click that just closed it (by taking focus away)
+            // shouldn't immediately reopen it.
+            Event::UserEvent(UserEvent::TrayClick(rect)) => {
+                if shown {
+                    close_panel(&mut win, &mut shown, tray.is_some());
+                    closed_at = std::time::Instant::now();
+                } else if closed_at.elapsed() > Duration::from_millis(300) {
+                    anchor = Some(rect);
+                    show = true;
+                }
+            }
             Event::UserEvent(UserEvent::Menu(id)) => match id.as_ref() {
                 "settings" => show = true,
                 "hide" => {
@@ -175,6 +208,28 @@ pub fn run(background: bool) {
                         tray = if on { make_tray() } else { None };
                     }
                     "login" => set_login(v.as_bool().unwrap_or(true), &proxy),
+                    // The page is drawn: size the panel to it, attach it and show it (no flash).
+                    "ready" => {
+                        loaded = true;
+                        height = v.as_f64().unwrap_or(560.0);
+                        if let Some((w, wv)) = &win {
+                            place(w, anchor, height);
+                            w.set_visible(true);
+                            w.set_focus();
+                            shown = true;
+                            #[cfg(target_os = "macos")]
+                            {
+                                let own = own_displays(&status::read(), &names);
+                                let _ = wv.evaluate_script(&format!("setWallpapers({})", wallpapers(&own)));
+                            }
+                            #[cfg(not(target_os = "macos"))]
+                            let _ = wv;
+                        }
+                    }
+                    "close" => {
+                        close_panel(&mut win, &mut shown, tray.is_some());
+                        closed_at = std::time::Instant::now();
+                    }
                     "auto" => save(|c| {
                         c.layout = None;
                         c.peer_side = None;
@@ -208,15 +263,31 @@ pub fn run(background: bool) {
             }
             // Dropping the window frees the web view entirely.
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => win = None,
+            // Like a menu: clicking anywhere else closes the panel.
+            Event::WindowEvent { event: WindowEvent::Focused(false), .. } if shown => {
+                close_panel(&mut win, &mut shown, tray.is_some());
+                closed_at = std::time::Instant::now();
+            }
             _ => {}
         }
         if show {
             match &win {
-                Some((w, _)) => {
+                // Kept from last time (icon mode): attach it again and replay the entrance.
+                Some((w, wv)) if loaded && !w.is_visible() => {
+                    place(w, anchor, height);
+                    let _ = wv.evaluate_script(&format!("reopen({})", state(&status::read(), login, &names)));
                     w.set_visible(true);
                     w.set_focus();
+                    shown = true;
                 }
-                None => win = open_window(target, &proxy),
+                // Still loading: it shows itself once drawn.
+                Some(_) if !shown => {}
+                Some((w, _)) => w.set_focus(),
+                None => {
+                    shown = false;
+                    loaded = false;
+                    win = open_window(target, &proxy);
+                }
             }
         }
         // Nothing on screen and no icon: nothing left to do.
@@ -227,23 +298,88 @@ pub fn run(background: bool) {
 }
 
 fn open_window(target: &tao::event_loop::EventLoopWindowTarget<UserEvent>, proxy: &EventLoopProxy<UserEvent>) -> Option<(Window, WebView)> {
-    let window = WindowBuilder::new()
+    let builder = WindowBuilder::new()
         .with_title("MagicInput")
-        .with_inner_size(LogicalSize::new(400.0, 830.0))
+        .with_inner_size(LogicalSize::new(PANEL_W, 560.0))
         .with_resizable(false)
-        .build(target)
-        .ok()?;
+        .with_decorations(false)
+        .with_transparent(true)
+        .with_always_on_top(true)
+        .with_visible(false);
+    #[cfg(target_os = "macos")]
+    let builder = {
+        use tao::platform::macos::WindowBuilderExtMacOS;
+        builder.with_has_shadow(true)
+    };
+    #[cfg(windows)]
+    let builder = {
+        use tao::platform::windows::WindowBuilderExtWindows;
+        builder.with_skip_taskbar(true)
+    };
+    let window = builder.build(target).ok()?;
     let p = proxy.clone();
     let webview = WebViewBuilder::new()
         .with_html(HTML)
+        .with_transparent(true)
         .with_ipc_handler(move |req| {
             let _ = p.send_event(UserEvent::Ipc(req.body().clone()));
         })
         .build(&window)
         .ok()?;
-    window.set_focus();
+    // Real frosted glass behind the page, like system menus. (After the web view: building it
+    // replaces the window's content.)
+    #[cfg(target_os = "macos")]
+    {
+        use window_vibrancy::{NSVisualEffectMaterial, NSVisualEffectState, apply_vibrancy};
+        let _ = apply_vibrancy(&window, NSVisualEffectMaterial::Popover, Some(NSVisualEffectState::Active), Some(16.0));
+    }
+    #[cfg(windows)]
+    {
+        let _ = window_vibrancy::apply_acrylic(&window, None);
+    }
     let _ = proxy.send_event(UserEvent::Tick);
     Some((window, webview))
+}
+
+/// Hide the panel. With the icon on it's kept for next time (opens instantly); otherwise it's
+/// dropped, which ends this process.
+fn close_panel(win: &mut Option<(Window, WebView)>, shown: &mut bool, keep: bool) {
+    *shown = false;
+    match win {
+        Some((w, _)) if keep => w.set_visible(false),
+        _ => *win = None,
+    }
+}
+
+/// Size the panel and attach it under the menu bar icon (above it when the taskbar is at the
+/// bottom, as on Windows). Without an icon it sits at the top right, under the menu bar.
+fn place(w: &Window, anchor: Option<tray_icon::Rect>, height: f64) {
+    w.set_inner_size(LogicalSize::new(PANEL_W, height));
+    let monitors: Vec<_> = w.available_monitors().collect();
+    let in_monitor = |m: &tao::monitor::MonitorHandle, x: f64, y: f64| {
+        let (p, s) = (m.position(), m.size());
+        x >= p.x as f64 && x < p.x as f64 + s.width as f64 && y >= p.y as f64 && y < p.y as f64 + s.height as f64
+    };
+    let monitor = anchor
+        .and_then(|r| monitors.iter().find(|m| in_monitor(m, r.position.x, r.position.y)).cloned())
+        .or_else(|| w.primary_monitor())
+        .or_else(|| monitors.first().cloned());
+    let Some(m) = monitor else { return };
+    let k = m.scale_factor();
+    let (mx, my) = (m.position().x as f64 / k, m.position().y as f64 / k);
+    let (mw, mh) = (m.size().width as f64 / k, m.size().height as f64 / k);
+    let (x, y) = match anchor {
+        Some(r) => {
+            let (rx, ry) = (r.position.x / k, r.position.y / k);
+            let (rw, rh) = (r.size.width as f64 / k, r.size.height as f64 / k);
+            let below = ry < my + mh / 2.0;
+            (rx + rw / 2.0 - PANEL_W / 2.0, if below { ry + rh + 5.0 } else { ry - height - 10.0 })
+        }
+        None if cfg!(target_os = "macos") => (mx + mw - PANEL_W - 10.0, my + 34.0),
+        None => (mx + mw - PANEL_W - 12.0, my + mh - height - 60.0),
+    };
+    let x = x.clamp(mx + 8.0, mx + mw - PANEL_W - 8.0);
+    w.set_outer_position(LogicalPosition::new(x, y));
 }
 
 fn make_tray() -> Option<Tray> {
@@ -252,7 +388,7 @@ fn make_tray() -> Option<Tray> {
     menu.append_items(&[
         &status,
         &PredefinedMenuItem::separator(),
-        &MenuItem::with_id("settings", "Settings…", true, None),
+        &MenuItem::with_id("settings", "Open MagicInput", true, None),
         &MenuItem::with_id("hide", if cfg!(target_os = "macos") { "Hide from Menu Bar" } else { "Hide Icon" }, true, None),
     ])
     .ok()?;
@@ -264,6 +400,7 @@ fn make_tray() -> Option<Tray> {
     let icon = builder
         .with_tooltip("MagicInput")
         .with_menu(Box::new(menu))
+        .with_menu_on_left_click(false)
         .build()
         .ok()?;
     status.set_text(status_line(&status::read()));
@@ -333,6 +470,47 @@ fn monitor_names(_target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) ->
             (r, friendly_name(s.localizedName().to_string()))
         })
         .collect()
+}
+
+/// Each display's desktop picture as a small JPEG data URL, keyed by its index in `own` (Mac).
+/// Thumbnails are cached, so only the first look at a new wallpaper takes a moment.
+#[cfg(target_os = "macos")]
+fn wallpapers(own: &[(Rect, Option<u32>, bool)]) -> String {
+    use base64::Engine;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSScreen, NSWorkspace};
+    use std::hash::{Hash, Hasher};
+
+    let Some(mtm) = MainThreadMarker::new() else { return "{}".into() };
+    let screens = NSScreen::screens(mtm);
+    let main_h = screens.firstObject().map(|s| s.frame().size.height).unwrap_or(0.0);
+    let workspace = NSWorkspace::sharedWorkspace();
+    let cache = Config::path().with_file_name("wallpapers");
+    let _ = std::fs::create_dir_all(&cache);
+    let mut out = serde_json::Map::new();
+    for screen in screens.iter() {
+        let f = screen.frame();
+        let (x, y) = (f.origin.x, main_h - f.origin.y - f.size.height);
+        let Some(i) = own.iter().position(|d| (d.0.x - x).abs() < 1.0 && (d.0.y - y).abs() < 1.0) else { continue };
+        let Some(path) = workspace.desktopImageURLForScreen(&screen).and_then(|u| u.path()).map(|p| p.to_string()) else {
+            continue;
+        };
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        path.hash(&mut h);
+        std::fs::metadata(&path).and_then(|m| m.modified()).ok().hash(&mut h);
+        let thumb = cache.join(format!("{:016x}.jpg", h.finish()));
+        if !thumb.exists() {
+            let _ = Command::new("sips")
+                .args(["-s", "format", "jpeg", "-s", "formatOptions", "72", "-Z", "480", &path, "--out"])
+                .arg(&thumb)
+                .output();
+        }
+        if let Ok(bytes) = std::fs::read(&thumb) {
+            let url = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes));
+            out.insert(i.to_string(), Value::String(url));
+        }
+    }
+    Value::Object(out).to_string()
 }
 
 /// Display names, positioned in the same logical units the service reports.

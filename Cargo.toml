@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 arboard = "3.6.1"
+base64 = "0.23.1"
 clap = { version = "4.6.7", features = ["derive"] }
 crossbeam-channel = "0.5.17"
 ctrlc = "3.5.2"
@@ -23,6 +24,7 @@ snow = "0.10.0"
 tao = "0.37.1"
 toml = "1.1.8"
 tray-icon = "0.26.1"
+window-vibrancy = "0.8.1"
 wry = "0.57.0"
 
 [target."cfg(windows)".dependencies]
@@ -30,8 +32,8 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_Wi
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSScreen"] }
-objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSGeometry", "NSEnumerator"] }
+objc2-app-kit = { version = "0.3", features = ["NSScreen", "NSWorkspace"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSGeometry", "NSEnumerator", "NSURL"] }
 
 [profile.release]
 strip = true

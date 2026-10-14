@@ -5,79 +5,127 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MagicInput</title>
 <style>
+  /* Monochrome glass: white glass with black accents, or dark glass with white accents. The
+     frosted blur itself comes from the system (vibrancy / acrylic) behind this page. */
   :root {
-    --bg: #f4f4f5; --card: #ffffff; --card-line: rgba(0,0,0,.06); --text: #0b0b0c; --muted: #6b6b70; --line: rgba(0,0,0,.07);
-    --accent: #0b0b0c; --accent-text: #ffffff; --track: #e4e4e7; --btn: #efeff1;
-    --screen: #ececee; --screen-line: #d4d4d8; --peer-a: #1c1c1f; --peer-b: #0b0b0c; --peer-text: #ffffff;
-    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+    --text: #0d0d0f; --muted: rgba(13,13,15,.55); --faint: rgba(13,13,15,.35);
+    --card: rgba(255,255,255,.55); --card-hover: rgba(255,255,255,.8); --edge: rgba(0,0,0,.07); --hi: rgba(255,255,255,.7);
+    --accent: #0d0d0f; --on-accent: #ffffff; --track: rgba(0,0,0,.12);
+    --screen-edge: rgba(0,0,0,.18); --bubble: rgba(255,255,255,.92); --bubble-text: #0d0d0f;
+    --peer-a: #2a2a2e; --peer-b: #0d0d0f; --peer-text: #fff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0c0c0e; --card: #161618; --card-line: rgba(255,255,255,.07); --text: #f4f4f5; --muted: #9a9aa0; --line: rgba(255,255,255,.07);
-      --accent: #f4f4f5; --accent-text: #0b0b0c; --track: #2a2a2e; --btn: #232326;
-      --screen: #1f1f23; --screen-line: #36363c; --peer-a: #fafafa; --peer-b: #d6d6da; --peer-text: #0b0b0c;
-      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+      --text: #f5f5f7; --muted: rgba(245,245,247,.6); --faint: rgba(245,245,247,.35);
+      --card: rgba(255,255,255,.07); --card-hover: rgba(255,255,255,.12); --edge: rgba(255,255,255,.09); --hi: rgba(255,255,255,.06);
+      --accent: #f5f5f7; --on-accent: #0d0d0f; --track: rgba(255,255,255,.16);
+      --screen-edge: rgba(255,255,255,.22); --bubble: rgba(40,40,44,.92); --bubble-text: #f5f5f7;
+      --peer-a: #fafafa; --peer-b: #cfcfd4; --peer-text: #0d0d0f;
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text);
+  html, body { margin: 0; background: transparent; color: var(--text); overflow: hidden;
     font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     -webkit-user-select: none; user-select: none; cursor: default; -webkit-font-smoothing: antialiased; }
-  main { padding: 18px 18px 14px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  header svg { width: 42px; height: 42px; flex: none; }
-  h1 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
-  .status { display: flex; align-items: center; gap: 7px; color: var(--muted); margin-top: 2px; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--muted); flex: none; }
+  .panel { padding: 14px; opacity: 0; transform: scale(.97); transform-origin: top center;
+    transition: opacity .18s ease-out, transform .22s cubic-bezier(.2,.9,.3,1.15); }
+  [data-os=windows] .panel { transform-origin: bottom center; }
+  .panel.in { opacity: 1; transform: none; }
+
+  header { display: flex; align-items: center; gap: 11px; padding: 2px 2px 12px; }
+  header .logo { width: 34px; height: 34px; flex: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.18)); }
+  .title { flex: 1; min-width: 0; }
+  h1 { font-size: 14px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--faint); flex: none; }
   .dot.ok { background: var(--accent); border-color: var(--accent); }
   .dot.wait { border-color: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 50% { opacity: .25; } }
-  h2 { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 16px 4px 7px; }
-  .card { background: var(--card); border-radius: 12px; padding: 0 13px; box-shadow: var(--shadow), 0 0 0 1px var(--card-line); }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 8px 0; }
-  .row + .row { border-top: 1px solid var(--line); }
-  .row .label { display: flex; flex-direction: column; }
-  .sub { color: var(--muted); font-size: 11.5px; }
-  .stack { flex-direction: column; align-items: stretch; gap: 6px; }
-  .switch { position: relative; width: 34px; height: 20px; flex: none; }
-  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-  .switch span { position: absolute; inset: 0; background: var(--track); border-radius: 20px; transition: background .15s; }
-  .switch span::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s, background .15s; }
-  .switch input:checked + span { background: var(--accent); }
-  .switch input:checked + span::after { transform: translateX(14px); background: var(--accent-text); }
-  input[type=range] { width: 150px; accent-color: var(--accent); }
-  .val { color: var(--muted); font-variant-numeric: tabular-nums; width: 34px; text-align: right; display: inline-block; }
-  .code { font: 600 15px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; -webkit-user-select: text; user-select: text; }
-  button.btn { border: 0; border-radius: 7px; padding: 5px 11px; font: inherit; background: var(--btn); color: var(--text); }
-  button.btn.primary { background: var(--accent); color: var(--accent-text); }
+  @keyframes pulse { 50% { opacity: .2; } }
+  .power { width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; flex: none;
+    background: var(--card); color: var(--muted); box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi);
+    transition: background .15s, color .15s, transform .1s; }
+  .power:hover { background: var(--card-hover); }
+  .power:active { transform: scale(.94); }
+  .power.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+  .power svg { width: 16px; height: 16px; }
+
+  .card { background: var(--card); border-radius: 14px; box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi); }
+  .card + .card, .card + .tiles, .tiles + .card { margin-top: 10px; }
+  .cardhead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 0; }
+  .cardhead span { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  .pill { border: 0; border-radius: 9px; padding: 2px 9px; font: 600 10.5px/1.5 inherit; font-family: inherit;
+    background: transparent; color: var(--muted); box-shadow: inset 0 0 0 .5px var(--edge); transition: background .15s, color .15s; }
+  .pill:hover { background: var(--card-hover); }
+  .pill.on { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+  .hint { color: var(--muted); font-size: 11px; padding: 0 12px 10px; text-align: center; min-height: 14px; }
+
+  #arrange { position: relative; height: 118px; margin: 2px 8px 0; touch-action: none; }
+  .scr { position: absolute; border-radius: 5px; overflow: visible; background: #8e8e93 center / cover no-repeat;
+    box-shadow: 0 0 0 .5px var(--screen-edge), 0 2px 6px rgba(0,0,0,.18); transition: left .2s, top .2s, box-shadow .15s; }
+  .scr .glass { position: absolute; inset: 0; border-radius: 5px; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.05)); }
+  .scr.main .bar { position: absolute; top: 0; left: 0; right: 0; height: 9%; min-height: 3px; border-radius: 5px 5px 0 0;
+    background: rgba(255,255,255,.55); backdrop-filter: blur(4px); }
+  .scr.movable, .peer { cursor: grab; }
+  .scr.movable:hover, .peer:hover { box-shadow: 0 0 0 1.5px var(--accent), 0 4px 12px rgba(0,0,0,.22); }
+  .peer { position: absolute; border-radius: 5px; color: var(--peer-text); font-size: 10px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 3px; overflow: visible;
+    background: linear-gradient(160deg, var(--peer-a), var(--peer-b)); box-shadow: 0 0 0 .5px var(--screen-edge), 0 4px 12px rgba(0,0,0,.25);
+    transition: left .2s, top .2s, box-shadow .15s; }
+  .peer .glyph { opacity: .85; }
+  .peer.auto { background: transparent; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--faint); }
+  .dragging { cursor: grabbing !important; transition: none !important; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(0,0,0,.3) !important; }
+  /* Name bubble on hover, like the one in Displays. */
+  .bubble { position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%) translateY(3px) scale(.96);
+    background: var(--bubble); color: var(--bubble-text); font-size: 11px; font-weight: 500; white-space: nowrap;
+    padding: 4px 9px; border-radius: 9px; display: flex; gap: 5px; align-items: center; pointer-events: none; opacity: 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18), 0 0 0 .5px var(--edge); transition: opacity .14s, transform .18s cubic-bezier(.2,.9,.3,1.2); z-index: 5; }
+  .bubble::after { content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--bubble); }
+  .bubble svg { width: 13px; height: 13px; }
+  .scr:hover .bubble, .peer:hover .bubble { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  .dragging .bubble { opacity: 0 !important; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { border: 0; border-radius: 14px; padding: 11px 6px 9px; background: var(--card); color: var(--text); font: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi);
+    transition: background .15s, color .15s, transform .1s, box-shadow .15s; }
+  .tile:hover { background: var(--card-hover); }
+  .tile:active { transform: scale(.96); }
+  .tile svg { width: 19px; height: 19px; }
+  .tile span { font-size: 11px; font-weight: 500; }
+  .tile.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .row + .row { border-top: .5px solid var(--edge); }
+  .row svg.ic { width: 16px; height: 16px; color: var(--muted); flex: none; }
+  .row .grow { flex: 1; }
+  .val { color: var(--muted); font-variant-numeric: tabular-nums; width: 36px; text-align: right; font-size: 12px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+    background: linear-gradient(to right, var(--accent) var(--p, 50%), var(--track) var(--p, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3), 0 0 0 .5px rgba(0,0,0,.1); transition: transform .1s; }
+  input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
+
+  .code { font: 600 14px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; -webkit-user-select: text; user-select: text; }
+  .lbl { font-size: 11px; color: var(--muted); }
+  button.btn { border: 0; border-radius: 8px; padding: 5px 10px; font: 500 12px inherit; font-family: inherit; background: transparent; color: var(--text);
+    box-shadow: inset 0 0 0 .5px var(--edge); transition: background .15s, transform .1s; }
+  button.btn:hover { background: var(--card-hover); }
+  button.btn:active { transform: scale(.96); }
+  button.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: none; }
   button.btn:disabled { opacity: .35; }
-  input[type=text] { font: 600 13px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 7px; padding: 5px 8px; width: 112px; outline: none; }
-  input[type=text]:focus { box-shadow: 0 0 0 2px var(--accent); }
-  .nowrap { white-space: nowrap; }
-  .h2row { display: flex; justify-content: space-between; align-items: center; }
-  .pill { border: 0; border-radius: 10px; padding: 2px 10px; font-family: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
-    background: var(--btn); color: var(--muted); text-transform: none; }
-  .pill.on { background: var(--accent); color: var(--accent-text); }
-  #arrange { position: relative; height: 160px; margin: 6px 0 2px; touch-action: none; }
-  .scr { position: absolute; border-radius: 6px; background: var(--screen); box-shadow: inset 0 0 0 1px var(--screen-line);
-    display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--muted); overflow: hidden;
-    transition: left .15s, top .15s; }
-  .scr.main::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--screen-line); }
-  .scr.movable { cursor: grab; }
-  .peer { position: absolute; border-radius: 6px; color: var(--peer-text); font-size: 10.5px; font-weight: 600; cursor: grab;
-    display: flex; align-items: center; justify-content: center; text-align: center; padding: 2px; overflow: hidden;
-    background: linear-gradient(160deg, var(--peer-a), var(--peer-b)); box-shadow: 0 4px 14px rgba(0,0,0,.25); transition: left .15s, top .15s; }
-  .peer.auto { background: transparent; color: var(--text); box-shadow: none; border: 1.5px dashed var(--muted); }
-  .drag { cursor: grabbing !important; transition: none !important; opacity: .9; z-index: 2; }
-  footer { margin-top: 14px; text-align: center; color: var(--muted); font-size: 11px; }
+  input[type=text] { font: 600 12.5px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase;
+    border: 0; background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 9px; width: 100%; outline: none;
+    box-shadow: inset 0 0 0 .5px var(--edge); }
+  input[type=text]:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  input[type=text]::placeholder { color: var(--faint); text-transform: none; letter-spacing: 0; font: 400 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  footer { text-align: center; color: var(--faint); font-size: 10.5px; padding: 10px 0 0; }
 </style>
 </head>
 <body>
-<main>
+<div class="panel" id="panel">
   <header>
-    <svg viewBox="96 84 832 844" aria-hidden="true">
+    <svg class="logo" viewBox="96 84 832 844" aria-hidden="true">
       <defs>
         <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E6E9"/></linearGradient>
         <linearGradient id="back" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D9D9DD"/><stop offset="1" stop-color="#C4C4C9"/></linearGradient>
@@ -91,68 +139,96 @@
         <path fill="#111114" d="M21,34.4 C21.74,38.26 21.74,38.26 25.6,39 C21.74,39.74 21.74,39.74 21,43.6 C20.26,39.74 20.26,39.74 16.4,39 C20.26,38.26 20.26,38.26 21,34.4 Z M17.5,48.2 C17.87,50.13 17.87,50.13 19.8,50.5 C17.87,50.87 17.87,50.87 17.5,52.8 C17.13,50.87 17.13,50.87 15.2,50.5 C17.13,50.13 17.13,50.13 17.5,48.2 Z M49,76.9 C49.42,79.08 49.42,79.08 51.6,79.5 C49.42,79.92 49.42,79.92 49,82.1 C48.58,79.92 48.58,79.92 46.4,79.5 C48.58,79.08 48.58,79.08 49,76.9 Z"/>
       </g>
     </svg>
-    <div>
+    <div class="title">
       <h1>MagicInput</h1>
       <div class="status"><span class="dot" id="dot"></span><span id="status">Starting…</span></div>
     </div>
+    <button class="power" id="power" title="Start at login">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.5v8"/><path d="M6.3 6.8a7.6 7.6 0 1 0 11.4 0"/></svg>
+    </button>
   </header>
 
-  <h2 class="h2row"><span>Arrangement</span><button class="pill" id="auto">Auto</button></h2>
   <div class="card">
-    <div class="row stack">
-      <div id="arrange"></div>
-      <div class="sub" id="sideHint"></div>
+    <div class="cardhead"><span>Displays</span><button class="pill" id="auto">Auto</button></div>
+    <div id="arrange"></div>
+    <div class="hint" id="sideHint"></div>
+  </div>
+
+  <div class="tiles">
+    <button class="tile" id="clipboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="2.5"/><path d="M9 4.5h6v2.2a.8.8 0 0 1-.8.8H9.8a.8.8 0 0 1-.8-.8z"/><path d="M9 12h6M9 15.5h4" stroke-linecap="round"/></svg>
+      <span>Clipboard</span>
+    </button>
+    <button class="tile" id="swap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 9V6.5A2.5 2.5 0 1 0 6.5 9H17.5A2.5 2.5 0 1 0 15 6.5V17.5A2.5 2.5 0 1 0 17.5 15H6.5A2.5 2.5 0 1 0 9 17.5Z"/></svg>
+      <span id="swapLabel">⌘ as Ctrl</span>
+    </button>
+    <button class="tile" id="tray">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M3.5 9h17"/><circle cx="16.5" cy="6.8" r=".6" fill="currentColor"/></svg>
+      <span id="trayLabel">Menu bar</span>
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M7 3.5v15.2l3.8-3.6 2.7 5.8 2.3-1.1-2.7-5.7 5.2-.3z"/></svg>
+      <input class="grow" type="range" id="mouse_speed" min="0.5" max="2" step="0.05"><span class="val" id="mouse_speed_v"></span>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3.5" width="10" height="17" rx="5"/><path d="M12 7.5v3" stroke-linecap="round"/></svg>
+      <input class="grow" type="range" id="scroll_speed" min="0.5" max="2" step="0.05"><span class="val" id="scroll_speed_v"></span>
     </div>
   </div>
 
-  <h2>Pointer & keyboard</h2>
   <div class="card">
-    <div class="row"><span>Pointer speed</span><span class="nowrap"><input type="range" id="mouse_speed" min="0.5" max="2" step="0.05"> <span class="val" id="mouse_speed_v"></span></span></div>
-    <div class="row"><span>Scroll speed</span><span class="nowrap"><input type="range" id="scroll_speed" min="0.5" max="2" step="0.05"> <span class="val" id="scroll_speed_v"></span></span></div>
-    <div class="row"><span class="label"><span id="swapLabel"></span><span class="sub" id="swapSub"></span></span><label class="switch"><input type="checkbox" id="swap"><span></span></label></div>
+    <div class="row">
+      <div class="grow"><div class="lbl">This computer's code</div><div class="code" id="code">····-····</div></div>
+      <button class="btn" id="newCode">New</button>
+    </div>
+    <div class="row">
+      <input type="text" id="pairInput" maxlength="9" placeholder="Other computer's code" spellcheck="false">
+      <button class="btn primary" id="pair" disabled>Pair</button>
+    </div>
   </div>
 
-  <h2>General</h2>
-  <div class="card">
-    <div class="row"><span class="label"><span>Share clipboard</span><span class="sub">Copied text follows the pointer</span></span><label class="switch"><input type="checkbox" id="clipboard"><span></span></label></div>
-    <div class="row"><span>Start at login</span><label class="switch"><input type="checkbox" id="login"><span></span></label></div>
-    <div class="row"><span id="trayLabel"></span><label class="switch"><input type="checkbox" id="tray"><span></span></label></div>
-  </div>
-
-  <h2>Pairing</h2>
-  <div class="card">
-    <div class="row"><span class="label"><span>This computer's code</span><span class="code" id="code">····-····</span></span><button class="btn" id="newCode">New code</button></div>
-    <div class="row"><span>Other computer's code</span><span class="nowrap"><input type="text" id="pairInput" maxlength="9" placeholder="XXXX-XXXX" spellcheck="false"> <button class="btn primary" id="pair" disabled>Pair</button></span></div>
-  </div>
-
-  <footer><span id="escHint"></span> · v<span id="version"></span></footer>
-</main>
+  <footer id="escHint"></footer>
+</div>
 <script>
   const send = (t, v) => window.ipc.postMessage(JSON.stringify({ t, v }));
   const $ = id => document.getElementById(id);
+  const ICON = {
+    laptop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 18.5h19" stroke-linecap="round"/></svg>',
+    ipad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/></svg>',
+    monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12.5" rx="1.5"/><path d="M9 20h6M12 16.5V20" stroke-linecap="round"/></svg>',
+    pc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12.5" rx="1.5"/><path d="M8 20h8M12 16.5V20" stroke-linecap="round"/></svg>',
+  };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let S = null, walls = {}, ready = false;
 
+  $('power').onclick = () => send('login', !S?.login);
   $('auto').onclick = () => send('auto');
-  ['mouse_speed', 'scroll_speed'].forEach(id => {
-    $(id).oninput = () => $(id + '_v').textContent = (+$(id).value).toFixed(2) + '×';
+  for (const id of ['clipboard', 'swap', 'tray']) $(id).onclick = () => { if (S) send(id, !S[id]); };
+  const paint = el => el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+  for (const id of ['mouse_speed', 'scroll_speed']) {
+    $(id).oninput = () => { $(id + '_v').textContent = (+$(id).value).toFixed(2) + '×'; paint($(id)); };
     $(id).onchange = () => send(id, +$(id).value);
-  });
-  ['swap', 'clipboard', 'login', 'tray'].forEach(id => $(id).onchange = () => send(id, $(id).checked));
+  }
   $('newCode').onclick = () => send('new_code');
   const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
   $('pairInput').oninput = () => $('pair').disabled = norm($('pairInput').value).length !== 8;
   $('pair').onclick = () => { send('pair', $('pairInput').value); $('pairInput').value = ''; $('pair').disabled = true; };
   $('pairInput').onkeydown = e => { if (e.key === 'Enter' && !$('pair').disabled) $('pair').click(); };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') send('close'); });
 
-  // ---- Arrangement, drawn to scale: this computer's displays and the other computer.
-  // Drag the other computer along any outer edge, or move this computer's extra displays
-  // (e.g. an iPad) around the others. Everything snaps to edges and alignments.
-  let S = null, drag = null, view = null;
+  // ---- Displays, drawn to scale like System Settings: this computer's screens (with their
+  // wallpaper) and the other computer. Drag the other computer along any outer edge, or move
+  // this computer's extra displays (e.g. an iPad). Everything snaps to edges and alignments.
+  let drag = null, view = null;
   const area = $('arrange');
   const union = rs => { const x0 = Math.min(...rs.map(r => r.x)), y0 = Math.min(...rs.map(r => r.y));
     return { x: x0, y: y0, w: Math.max(...rs.map(r => r.x + r.w)) - x0, h: Math.max(...rs.map(r => r.y + r.h)) - y0 }; };
   const horiz = side => side === 'left' || side === 'right';
 
-  // Rectangle for something of `size` placed on `side` of U at `offset` along that edge.
   function besideRect(p, U, size) {
     const along = p.length, across = horiz(p.side) ? size.w * along / size.h : size.h * along / size.w;
     if (p.side === 'right') return { x: U.x + U.w, y: p.offset, w: across, h: along };
@@ -161,7 +237,6 @@
     return { x: p.offset, y: U.y - across, w: along, h: across };
   }
 
-  // Nearest edge placement for something of `size` centred at (cx, cy), snapped to alignments.
   function placementAt(cx, cy, U, screens, size) {
     const dx = (cx - (U.x + U.w / 2)) / U.w, dy = (cy - (U.y + U.h / 2)) / U.h;
     const side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
@@ -178,26 +253,32 @@
     return { side, offset, length };
   }
 
+  const kindOf = r => /ipad/i.test(r.name) ? 'ipad' : /built-in/i.test(r.name) ? 'laptop' : 'monitor';
+
   function drawArrange() {
     if (!S || !S.screens.length) { area.innerHTML = ''; return; }
-    const screens = S.screens.map((r, i) => drag && drag.kind === 'screen' && drag.i === i ? { ...r, ...drag.rect } : r);
+    const screens = S.screens.map((r, i) => drag?.kind === 'screen' && drag.i === i ? { ...r, ...drag.rect } : r);
     const U = union(S.screens), size = S.peer_size;
-    const p = drag && drag.kind === 'peer' ? drag.p : (S.placement || { side: 'right', offset: U.y + U.h / 2 - size.h / 2, length: size.h });
+    const p = drag?.kind === 'peer' ? drag.p : (S.placement || { side: 'right', offset: U.y + U.h / 2 - size.h / 2, length: size.h });
     const P = besideRect(p, U, size), all = union([...screens, P]);
     if (!drag || !view) {
-      const pad = 0.12, W = area.clientWidth, H = area.clientHeight;
-      const ext = { x: all.x - all.w * pad, y: all.y - all.h * pad, w: all.w * (1 + 2 * pad), h: all.h * (1 + 2 * pad) };
+      const pad = 0.1, W = area.clientWidth, H = area.clientHeight;
+      const ext = { x: all.x - all.w * pad, y: all.y - all.h * pad - all.h * 0.12, w: all.w * (1 + 2 * pad), h: all.h * (1 + 2 * pad + 0.12) };
       const k = Math.min(W / ext.w, H / ext.h);
       view = { k, ox: (W - ext.w * k) / 2 - ext.x * k, oy: (H - ext.h * k) / 2 - ext.y * k };
     }
-    const px = r => `left:${r.x * view.k + view.ox}px;top:${r.y * view.k + view.oy}px;width:${r.w * view.k - 2}px;height:${r.h * view.k - 2}px`;
+    const px = r => `left:${r.x * view.k + view.ox}px;top:${r.y * view.k + view.oy}px;width:${r.w * view.k - 1.5}px;height:${r.h * view.k - 1.5}px`;
     let html = screens.map((r, i) => {
-      const cls = ['scr', r.main ? 'main' : '', r.id != null && !r.main && screens.length > 1 ? 'movable' : '',
-        drag && drag.kind === 'screen' && drag.i === i ? 'drag' : ''].join(' ');
-      return `<div class="${cls}" data-i="${i}" style="${px(r)}">${r.name || ''}</div>`;
+      const movable = r.id != null && !r.main && screens.length > 1;
+      const cls = ['scr', r.main ? 'main' : '', movable ? 'movable' : '', drag?.kind === 'screen' && drag.i === i ? 'dragging' : ''].join(' ');
+      const bg = walls[i] ? `;background-image:url(${walls[i]})` : '';
+      return `<div class="${cls}" data-i="${i}" style="${px(r)}${bg}"><div class="glass"></div><div class="bar"></div>` +
+        `<div class="bubble">${ICON[kindOf(r)]}${esc(r.name || 'Display')}</div></div>`;
     }).join('');
-    const label = S.peer || (S.os === 'mac' ? 'PC' : 'Mac');
-    html += `<div class="peer${S.placement || drag?.kind === 'peer' ? '' : ' auto'}${drag?.kind === 'peer' ? ' drag' : ''}" id="peerBlock" style="${px(P)}">${label}</div>`;
+    const name = S.peer || (S.os === 'mac' ? 'PC' : 'Mac');
+    const pcls = ['peer', S.placement || drag?.kind === 'peer' ? '' : 'auto', drag?.kind === 'peer' ? 'dragging' : ''].join(' ');
+    html += `<div class="${pcls}" id="peerBlock" style="${px(P)}"><span class="glyph">${esc(name)}</span>` +
+      `<div class="bubble">${ICON.pc}${esc(name)}${S.placement ? '' : ' · drag to pin'}</div></div>`;
     area.innerHTML = html;
   }
 
@@ -225,24 +306,18 @@
   area.onpointermove = e => {
     if (!drag) return;
     const w = toWorld(e), cx = w.x - drag.gx, cy = w.y - drag.gy;
-    if (drag.kind === 'peer') {
-      drag.p = placementAt(cx, cy, union(S.screens), S.screens, S.peer_size);
-    } else {
-      const r = S.screens[drag.i];
-      drag.rect = { x: cx - r.w / 2, y: cy - r.h / 2 };
-    }
+    if (drag.kind === 'peer') drag.p = placementAt(cx, cy, union(S.screens), S.screens, S.peer_size);
+    else { const r = S.screens[drag.i]; drag.rect = { x: cx - r.w / 2, y: cy - r.h / 2 }; }
     drawArrange();
   };
   area.onpointerup = e => {
     if (!drag) return;
-    const d = drag;
-    const w = toWorld(e), cx = w.x - d.gx, cy = w.y - d.gy;
+    const d = drag, w = toWorld(e), cx = w.x - d.gx, cy = w.y - d.gy;
     drag = null; view = null;
     if (d.kind === 'peer') {
       S.placement = d.p;
       send('arrange', { side: d.p.side, offset: d.p.offset });
     } else {
-      // Snap the display against the others, like System Settings does.
       const r = S.screens[d.i], others = S.screens.filter((_, j) => j !== d.i);
       const p = placementAt(cx, cy, union(others), others, { w: r.w, h: r.h });
       const R = besideRect(p, union(others), { w: r.w, h: r.h });
@@ -251,31 +326,49 @@
     }
     drawArrange();
   };
-  window.onresize = () => { view = null; drawArrange(); };
+
+  // Shown again (kept hidden in between): refresh and replay the entrance.
+  window.reopen = s => {
+    $('panel').classList.remove('in');
+    render(s);
+    void $('panel').offsetHeight;
+    setTimeout(() => $('panel').classList.add('in'), 30);
+  };
+
+  window.setWallpapers = w => { walls = w || {}; if (!drag) drawArrange(); };
 
   window.render = s => {
     const mac = s.os === 'mac';
+    document.documentElement.dataset.os = s.os;
     let dot = 'dot', text;
-    if (!s.running) text = s.login ? 'Starting…' : 'Not running';
+    if (!s.running) text = s.login ? 'Starting…' : 'Off';
     else if (!s.peer) { dot += ' wait'; text = 'Looking for your other computer…'; }
     else { dot += ' ok'; text = s.controlling ? 'Controlling ' + s.peer : s.controlled ? s.peer + ' is in control' : 'Connected to ' + s.peer; }
     $('dot').className = dot; $('status').textContent = text;
+    $('power').classList.toggle('on', s.login);
+    $('power').title = s.login ? 'On, starts at login' : 'Off';
 
     if (!drag) { S = s; view = null; drawArrange(); }
     $('auto').classList.toggle('on', !s.placement);
-    $('sideHint').textContent = s.placement
-      ? 'The pointer crosses where the screens touch. Drag to rearrange.'
-      : 'Auto: push firmly past the left or right edge. Drag the screen to pin where it is.';
+    $('sideHint').textContent = s.placement ? 'The pointer crosses where the screens touch' : 'Push firmly past the left or right edge';
     for (const id of ['mouse_speed', 'scroll_speed']) {
-      if (document.activeElement !== $(id)) { $(id).value = s[id]; $(id + '_v').textContent = (+s[id]).toFixed(2) + '×'; }
+      if (document.activeElement !== $(id)) { $(id).value = s[id]; $(id + '_v').textContent = (+s[id]).toFixed(2) + '×'; paint($(id)); }
     }
-    $('swapLabel').textContent = mac ? 'Swap ⌘ and Ctrl with the PC' : 'Swap Ctrl and ⌘ with the Mac';
-    $('swapSub').textContent = mac ? '⌘C copies on the PC' : 'Ctrl+C copies on the Mac';
-    $('swap').checked = s.swap; $('clipboard').checked = s.clipboard; $('login').checked = s.login; $('tray').checked = s.tray;
-    $('trayLabel').textContent = mac ? 'Show in menu bar' : 'Show in notification area';
+    $('swapLabel').textContent = mac ? '⌘ as Ctrl' : 'Ctrl as ⌘';
+    $('trayLabel').textContent = mac ? 'Menu bar' : 'Tray icon';
+    for (const id of ['clipboard', 'swap', 'tray']) $(id).classList.toggle('on', !!s[id]);
     $('code').textContent = s.code;
-    $('escHint').textContent = (mac ? '⌃⌥Esc' : 'Ctrl+Alt+Esc') + ' always brings the pointer home';
-    $('version').textContent = s.version;
+    $('escHint').textContent = (mac ? '⌃⌥Esc' : 'Ctrl+Alt+Esc') + ' always brings the pointer home · v' + s.version;
+
+    // First paint done: tell the app our height so it can attach and show the panel, then fade in.
+    if (!ready) {
+      ready = true;
+      // (Timers, not animation frames: the window is still hidden, so frames don't run yet.)
+      setTimeout(() => {
+        send('ready', $('panel').offsetHeight);
+        setTimeout(() => $('panel').classList.add('in'), 40);
+      }, 0);
+    }
   };
 </script>
 </body>
