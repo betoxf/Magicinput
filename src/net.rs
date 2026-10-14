@@ -1,0 +1,322 @@
+//! Encrypted peer connection (Noise NNpsk0 over TCP) plus LAN discovery (mDNS).
+
+use std::collections::HashMap;
+use std::error::Error;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+use crossbeam_channel::{Receiver, RecvTimeoutError};
+use log::{debug, info, warn};
+use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
+use snow::TransportState;
+
+use crate::config::Config;
+use crate::core::{Core, Peer};
+use crate::proto::{Msg, Os, PROTOCOL_VERSION};
+
+type Res<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+const NOISE: &str = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s";
+const SERVICE: &str = "_magicinput._tcp.local.";
+const MAX_FRAME: usize = 65535;
+const TIMEOUT: Duration = Duration::from_secs(5);
+
+struct Active {
+    generation: u64,
+    peer_id: String,
+    /// Id of the computer that dialed; used to break ties when both dial at once.
+    dialer_id: String,
+    stream: TcpStream,
+    noise: Arc<Mutex<TransportState>>,
+}
+
+struct Net {
+    cfg: Config,
+    psk: [u8; 32],
+    core: &'static Core,
+    active: Mutex<Option<Active>>,
+    next_gen: AtomicU64,
+    /// Peers found via mDNS: id -> addresses.
+    found: Mutex<HashMap<String, Vec<SocketAddr>>>,
+}
+
+pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
+    let listener = TcpListener::bind(("0.0.0.0", cfg.port))
+        .map_err(|e| format!("can't listen on port {}: {e}", cfg.port))?;
+    let net = Arc::new(Net {
+        psk: cfg.psk(),
+        cfg,
+        core,
+        active: Mutex::new(None),
+        next_gen: AtomicU64::new(1),
+        found: Mutex::new(HashMap::new()),
+    });
+
+    let n = net.clone();
+    thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let n = n.clone();
+            thread::spawn(move || {
+                let addr = stream.peer_addr().ok();
+                if let Err(e) = n.establish(stream, false) {
+                    warn!("Incoming connection from {addr:?} failed: {e} (different pairing code?)");
+                }
+            });
+        }
+    });
+
+    let n = net.clone();
+    thread::spawn(move || n.writer(out));
+
+    if let Err(e) = net.clone().discovery() {
+        warn!("Auto-discovery unavailable ({e}); set peer_addr with `magicinput peer <ip>`");
+    }
+
+    let n = net.clone();
+    thread::spawn(move || n.dialer());
+    Ok(())
+}
+
+impl Net {
+    fn dialer(self: Arc<Self>) {
+        loop {
+            if self.active.lock().unwrap().is_none() {
+                let mut targets: Vec<SocketAddr> = Vec::new();
+                if let Some(addr) = &self.cfg.peer_addr {
+                    let with_port = if addr.contains(':') { addr.clone() } else { format!("{addr}:{}", self.cfg.port) };
+                    targets.extend(with_port.to_socket_addrs().into_iter().flatten());
+                }
+                // For discovered peers only the smaller id dials, so we don't race each other.
+                for (id, addrs) in self.found.lock().unwrap().iter() {
+                    if self.cfg.id < *id {
+                        targets.extend(addrs.iter().copied());
+                    }
+                }
+                for addr in targets {
+                    match TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
+                        Ok(s) => match self.clone().establish(s, true) {
+                            Ok(()) => break,
+                            Err(e) => warn!("Connecting to {addr} failed: {e}"),
+                        },
+                        Err(e) => debug!("{addr}: {e}"),
+                    }
+                }
+            }
+            thread::sleep(Duration::from_secs(2));
+        }
+    }
+
+    fn discovery(self: Arc<Self>) -> Res<()> {
+        let mdns = ServiceDaemon::new()?;
+        let group = self.cfg.group();
+        let instance = format!("{}-{}", self.cfg.name, &self.cfg.id[..4]);
+        let host = format!("magicinput-{}.local.", self.cfg.id);
+        let props = [("id", self.cfg.id.as_str()), ("g", group.as_str())];
+        let info = ServiceInfo::new(SERVICE, &instance, &host, "", self.cfg.port, &props[..])?
+            .enable_addr_auto();
+        mdns.register(info)?;
+        let rx = mdns.browse(SERVICE)?;
+        thread::spawn(move || {
+            let _keep_alive = mdns;
+            while let Ok(ev) = rx.recv() {
+                if let ServiceEvent::ServiceResolved(s) = ev {
+                    let (Some(id), Some(g)) = (s.get_property_val_str("id"), s.get_property_val_str("g")) else {
+                        continue;
+                    };
+                    if id == self.cfg.id || g != group {
+                        continue;
+                    }
+                    let addrs: Vec<SocketAddr> = s
+                        .get_addresses_v4()
+                        .into_iter()
+                        .map(|ip| SocketAddr::new(ip.into(), s.get_port()))
+                        .collect();
+                    debug!("Discovered {id} at {addrs:?}");
+                    self.found.lock().unwrap().insert(id.to_string(), addrs);
+                }
+            }
+        });
+        Ok(())
+    }
+
+    /// Handshake, exchange hellos, then run the reader until the connection drops.
+    fn establish(self: Arc<Self>, mut stream: TcpStream, dialer: bool) -> Res<()> {
+        stream.set_nodelay(true)?;
+        stream.set_read_timeout(Some(TIMEOUT))?;
+        stream.set_write_timeout(Some(TIMEOUT))?;
+        let mut noise = handshake(&mut stream, &self.psk, dialer)?;
+
+        let hello = Msg::Hello {
+            id: self.cfg.id.clone(),
+            name: self.cfg.name.clone(),
+            os: Os::current(),
+            version: PROTOCOL_VERSION,
+            peer_side: self.cfg.peer_side,
+        };
+        write_msg(&mut stream, &mut noise, &hello)?;
+        let Msg::Hello { id, name, os, version, peer_side } = read_msg(&mut stream, &mut noise)? else {
+            return Err("expected hello".into());
+        };
+        if version != PROTOCOL_VERSION {
+            return Err(format!("{name} runs protocol v{version}, we run v{PROTOCOL_VERSION}; update both").into());
+        }
+        if id == self.cfg.id {
+            return Err("connected to myself".into());
+        }
+
+        let generation = self.next_gen.fetch_add(1, Ordering::SeqCst);
+        let noise = Arc::new(Mutex::new(noise));
+        {
+            let mut active = self.active.lock().unwrap();
+            let dialer_id = if dialer { self.cfg.id.clone() } else { id.clone() };
+            if let Some(old) = active.as_ref() {
+                // Keep exactly one connection: the one dialed by the smaller id.
+                if old.peer_id == id && dialer_id < old.dialer_id {
+                    let _ = old.stream.shutdown(std::net::Shutdown::Both);
+                } else {
+                    return Ok(());
+                }
+            }
+            *active = Some(Active {
+                generation,
+                peer_id: id.clone(),
+                dialer_id,
+                stream: stream.try_clone()?,
+                noise: noise.clone(),
+            });
+        }
+        info!("Secure connection with {name} ({})", stream.peer_addr()?);
+        self.core.on_connect(Peer { name, os, side_hint: peer_side });
+
+        let r = (|| -> Res<()> {
+            loop {
+                let frame = read_frame(&mut stream)?;
+                let mut buf = vec![0u8; frame.len()];
+                let n = noise.lock().unwrap().read_message(&frame, &mut buf)?;
+                match postcard::from_bytes::<Msg>(&buf[..n])? {
+                    Msg::Ping => {}
+                    m => self.core.on_remote(m),
+                }
+            }
+        })();
+        debug!("reader ended: {r:?}");
+
+        let mut active = self.active.lock().unwrap();
+        if active.as_ref().is_some_and(|a| a.generation == generation) {
+            *active = None;
+            drop(active);
+            self.core.on_disconnect();
+        }
+        Ok(())
+    }
+
+    /// Sends queued messages, and a ping every second so both sides notice a dead link.
+    fn writer(&self, out: Receiver<Msg>) {
+        loop {
+            let msg = match out.recv_timeout(Duration::from_secs(1)) {
+                Ok(m) => m,
+                Err(RecvTimeoutError::Timeout) => Msg::Ping,
+                Err(RecvTimeoutError::Disconnected) => return,
+            };
+            let mut active = self.active.lock().unwrap();
+            let Some(a) = active.as_mut() else { continue };
+            let mut noise = a.noise.lock().unwrap();
+            if let Err(e) = write_msg(&mut a.stream, &mut noise, &msg) {
+                warn!("Send failed: {e}");
+                let _ = a.stream.shutdown(std::net::Shutdown::Both);
+            }
+        }
+    }
+}
+
+fn handshake(stream: &mut TcpStream, psk: &[u8; 32], initiator: bool) -> Res<TransportState> {
+    let builder = snow::Builder::new(NOISE.parse()?).psk(0, psk)?;
+    let mut buf = vec![0u8; MAX_FRAME];
+    let mut hs = if initiator { builder.build_initiator()? } else { builder.build_responder()? };
+    if initiator {
+        let n = hs.write_message(&[], &mut buf)?;
+        write_frame(stream, &buf[..n])?;
+        hs.read_message(&read_frame(stream)?, &mut buf)?;
+    } else {
+        hs.read_message(&read_frame(stream)?, &mut buf)?;
+        let n = hs.write_message(&[], &mut buf)?;
+        write_frame(stream, &buf[..n])?;
+    }
+    Ok(hs.into_transport_mode()?)
+}
+
+fn write_msg(stream: &mut TcpStream, noise: &mut TransportState, msg: &Msg) -> Res<()> {
+    let plain = postcard::to_stdvec(msg)?;
+    if plain.len() + 16 > MAX_FRAME {
+        return Err("message too large".into());
+    }
+    let mut buf = vec![0u8; plain.len() + 16];
+    let n = noise.write_message(&plain, &mut buf)?;
+    write_frame(stream, &buf[..n])
+}
+
+fn read_msg(stream: &mut TcpStream, noise: &mut TransportState) -> Res<Msg> {
+    let frame = read_frame(stream)?;
+    let mut buf = vec![0u8; frame.len()];
+    let n = noise.read_message(&frame, &mut buf)?;
+    Ok(postcard::from_bytes(&buf[..n])?)
+}
+
+fn write_frame(stream: &mut TcpStream, data: &[u8]) -> Res<()> {
+    let mut v = Vec::with_capacity(data.len() + 2);
+    v.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    v.extend_from_slice(data);
+    stream.write_all(&v)?;
+    Ok(())
+}
+
+fn read_frame(stream: &mut TcpStream) -> Res<Vec<u8>> {
+    let mut len = [0u8; 2];
+    stream.read_exact(&mut len)?;
+    let mut data = vec![0u8; u16::from_be_bytes(len) as usize];
+    stream.read_exact(&mut data)?;
+    Ok(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pair(psk_a: [u8; 32], psk_b: [u8; 32]) -> (Res<TransportState>, Res<TransportState>, TcpStream, TcpStream) {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = l.local_addr().unwrap();
+        let t = thread::spawn(move || {
+            let mut s = TcpStream::connect(addr).unwrap();
+            s.set_read_timeout(Some(TIMEOUT)).unwrap();
+            let r = handshake(&mut s, &psk_a, true);
+            (r, s)
+        });
+        let (mut b, _) = l.accept().unwrap();
+        b.set_read_timeout(Some(TIMEOUT)).unwrap();
+        let rb = handshake(&mut b, &psk_b, false);
+        let (ra, a) = t.join().unwrap();
+        (ra, rb, a, b)
+    }
+
+    #[test]
+    fn encrypted_roundtrip() {
+        let (ra, rb, mut a, mut b) = pair([7; 32], [7; 32]);
+        let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
+        let m = Msg::Key { hid: 0x04, down: true };
+        write_msg(&mut a, &mut na, &m).unwrap();
+        assert_eq!(read_msg(&mut b, &mut nb).unwrap(), m);
+        let big = Msg::Clipboard { text: "x".repeat(60_000) };
+        write_msg(&mut b, &mut nb, &big).unwrap();
+        assert_eq!(read_msg(&mut a, &mut na).unwrap(), big);
+    }
+
+    #[test]
+    fn wrong_code_is_rejected() {
+        let (_ra, rb, _a, _b) = pair([1; 32], [2; 32]);
+        assert!(rb.is_err());
+    }
+}
