@@ -30,6 +30,8 @@ pub struct Config {
     pub scroll_speed: f64,
     /// Share copied text between the computers.
     pub clipboard: bool,
+    /// Show the icon in the menu bar (Mac) / notification area (Windows).
+    pub show_tray: bool,
 }
 
 impl Default for Config {
@@ -45,6 +47,7 @@ impl Default for Config {
             mouse_speed: 1.0,
             scroll_speed: 1.0,
             clipboard: true,
+            show_tray: false,
         }
     }
 }
@@ -55,6 +58,11 @@ impl Config {
             .map(|d| d.config_dir().to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."))
             .join("config.toml")
+    }
+
+    /// Like `load`, but `None` if the file is missing or unreadable (never writes).
+    pub fn read() -> Option<Config> {
+        toml::from_str(&std::fs::read_to_string(Self::path()).ok()?).ok()
     }
 
     pub fn load() -> Config {

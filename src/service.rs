@@ -56,13 +56,9 @@ pub fn install() -> Result<String, String> {
     Ok(format!("Installed: magicinput now starts when you log in ({exe})."))
 }
 
-/// Restart the background copy (if installed) so it picks up new settings.
 #[cfg(target_os = "macos")]
-pub fn restart() {
-    if plist_path().exists() {
-        let _ = run(Command::new("launchctl").args(["kickstart", "-k", &format!("{}/{LABEL}", gui_domain())]));
-        println!("Restarted magicinput.");
-    }
+pub fn installed() -> bool {
+    plist_path().exists()
 }
 
 #[cfg(target_os = "macos")]
@@ -85,11 +81,13 @@ pub fn install() -> Result<String, String> {
     let src_dir = me.parent().ok_or("no exe dir")?.to_path_buf();
     let target = dir.join("magicinputw.exe");
 
-    // Stop a running copy so the exes can be replaced.
+    // Stop the running service; when updating the exes, also close the settings window/tray.
     stop_running();
     if !same_file(&src_dir, &dir) {
+        let _ = run(Command::new("taskkill").args(["/f", "/im", "magicinput-app.exe"]));
+        std::thread::sleep(std::time::Duration::from_millis(500));
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        for name in ["magicinput.exe", "magicinputw.exe"] {
+        for name in ["magicinput.exe", "magicinputw.exe", "magicinput-app.exe", "WebView2Loader.dll"] {
             std::fs::copy(src_dir.join(name), dir.join(name))
                 .map_err(|e| format!("copy {name} to {}: {e} (keep both exes in the same folder)", dir.display()))?;
         }
@@ -133,6 +131,7 @@ pub fn install() -> Result<String, String> {
         &format!("program={}", target.display()), "enable=yes", "profile=private,domain",
     ]));
     run(Command::new("schtasks").args(["/run", "/tn", TASK]))?;
+    shortcut(&dir.join("magicinput-app.exe"));
     let mut msg = format!("Installed and started: magicinput now starts when you log in ({}).", dir.display());
     if fw.is_err() {
         msg += "\nCould not add the firewall rule; allow magicinput when Windows asks.";
@@ -140,28 +139,70 @@ pub fn install() -> Result<String, String> {
     Ok(msg)
 }
 
-/// End the background copy and wait until it has actually exited.
+/// End the background service (not the settings window) and wait until it has exited.
 #[cfg(windows)]
 fn stop_running() {
     let _ = run(Command::new("schtasks").args(["/end", "/tn", TASK]));
-    let _ = run(Command::new("taskkill").args(["/f", "/im", "magicinputw.exe"]));
+    let _ = run(Command::new("powershell").args([
+        "-NoProfile",
+        "-Command",
+        "Get-CimInstance Win32_Process -Filter \"Name like 'magicinput%.exe'\" | Where-Object { $_.CommandLine -match ' run$' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+    ]));
+    // Wait until the service's port is free.
     for _ in 0..20 {
-        let list = run(Command::new("tasklist").args(["/fi", "imagename eq magicinputw.exe", "/nh"])).unwrap_or_default();
-        if !list.contains("magicinputw.exe") {
+        if std::net::TcpListener::bind(("0.0.0.0", crate::config::DEFAULT_PORT)).is_ok() {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
     }
 }
 
-/// Restart the background copy (if installed) so it picks up new settings.
 #[cfg(windows)]
-pub fn restart() {
-    if run(Command::new("schtasks").args(["/query", "/tn", TASK])).is_ok() {
-        stop_running();
-        let _ = run(Command::new("schtasks").args(["/run", "/tn", TASK]));
-        println!("Restarted magicinput.");
+pub fn installed() -> bool {
+    run(Command::new("schtasks").args(["/query", "/tn", TASK])).is_ok()
+}
+
+/// Start menu entry that opens the settings window. It stays when the service is
+/// uninstalled, so the window can always turn it back on.
+#[cfg(windows)]
+fn shortcut(target: &std::path::Path) {
+    let Ok(appdata) = std::env::var("APPDATA") else { return };
+    let lnk = std::path::PathBuf::from(appdata).join(r"Microsoft\Windows\Start Menu\Programs\MagicInput.lnk");
+    let script = format!(
+        "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $s.TargetPath='{}'; $s.IconLocation='{},0'; $s.Description='MagicInput settings'; $s.Save()",
+        lnk.display(),
+        target.display(),
+        target.display()
+    );
+    let _ = run(Command::new("powershell").args(["-NoProfile", "-Command", &script]));
+}
+
+/// Install or uninstall from the settings window: Windows needs administrator rights for the
+/// startup task and firewall rule, so this asks via the usual Windows prompt.
+#[cfg(windows)]
+pub fn set_elevated(enable: bool) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{INFINITE, WaitForSingleObject};
+    use windows_sys::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
+
+    let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("magicinput.exe");
+    let (verb, file, args) = (wide("runas"), wide(&exe.display().to_string()), wide(if enable { "install" } else { "uninstall" }));
+    unsafe {
+        let mut info: SHELLEXECUTEINFOW = std::mem::zeroed();
+        info.cbSize = size_of::<SHELLEXECUTEINFOW>() as u32;
+        info.fMask = SEE_MASK_NOCLOSEPROCESS;
+        info.lpVerb = verb.as_ptr();
+        info.lpFile = file.as_ptr();
+        info.lpParameters = args.as_ptr();
+        info.nShow = 0;
+        if ShellExecuteExW(&mut info) == 0 {
+            return Err("Windows didn't allow it".into());
+        }
+        WaitForSingleObject(info.hProcess, INFINITE);
+        CloseHandle(info.hProcess);
     }
+    Ok(())
 }
 
 #[cfg(windows)]

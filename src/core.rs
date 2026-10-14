@@ -4,7 +4,7 @@
 //! forwarded) or the *target* (it is being driven by the other computer).
 
 use std::collections::{HashSet, VecDeque};
-use std::sync::{Condvar, Mutex};
+use std::sync::{Condvar, Mutex, RwLock};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
@@ -82,7 +82,7 @@ struct Delay {
 }
 
 pub struct Core {
-    cfg: Config,
+    cfg: RwLock<Config>,
     mode: AtomicU8,
     out: Sender<Msg>,
     st: Mutex<State>,
@@ -96,7 +96,7 @@ impl Core {
     pub fn new(cfg: Config, out: Sender<Msg>) -> Core {
         let long_ago = Instant::now() - Duration::from_secs(60);
         Core {
-            cfg,
+            cfg: RwLock::new(cfg),
             mode: AtomicU8::new(LOCAL),
             out,
             start: Instant::now(),
@@ -345,7 +345,7 @@ impl Core {
             },
             Msg::Move { dx, dy, .. } if mode == CONTROLLED => {
                 let side = st.active_side;
-                let k = self.cfg.mouse_speed * platform::pointer_scale();
+                let k = self.cfg.read().unwrap().mouse_speed * platform::pointer_scale();
                 let (dx, dy) = (dx * k, dy * k);
                 let ds = self.displays(&mut st);
                 let cur = st.cur;
@@ -380,12 +380,12 @@ impl Core {
                 platform::inject_button(button, down, st.cur.0, st.cur.1);
             }
             Msg::Wheel { dx, dy } if mode == CONTROLLED => {
-                let s = self.cfg.scroll_speed;
+                let s = self.cfg.read().unwrap().scroll_speed;
                 platform::inject_wheel(dx * s, dy * s);
             }
             Msg::Key { hid, down } if mode == CONTROLLED => {
                 let hid = match &st.peer {
-                    Some(p) if self.cfg.swap_ctrl_cmd && p.os != Os::current() => {
+                    Some(p) if self.cfg.read().unwrap().swap_ctrl_cmd && p.os != Os::current() => {
                         keymap::swap_ctrl_gui(hid)
                     }
                     _ => hid,
@@ -398,7 +398,7 @@ impl Core {
                 platform::inject_key(hid, down);
             }
             Msg::Clipboard { text } => {
-                if self.cfg.clipboard {
+                if self.cfg.read().unwrap().clipboard {
                     st.last_clipboard = Some(text.clone());
                     drop(st);
                     std::thread::spawn(move || {
@@ -416,7 +416,7 @@ impl Core {
         // New peer clock: start the delay baseline over.
         *self.delay.lock().unwrap() = Delay { min_cur: i64::MAX, min_prev: i64::MAX, window_start: Instant::now() };
         let mut st = self.st.lock().unwrap();
-        st.side = self.cfg.peer_side.or(peer.side_hint.map(Side::opposite));
+        st.side = self.cfg.read().unwrap().peer_side.or(peer.side_hint.map(Side::opposite));
         info!("Connected to {} ({:?})", peer.name, peer.os);
         match st.side {
             Some(s) => info!(
@@ -430,6 +430,31 @@ impl Core {
             ),
         }
         st.peer = Some(peer);
+    }
+
+    /// Apply settings changed while running (from the settings window).
+    pub fn reload(&self, cfg: Config) {
+        let side = cfg.peer_side;
+        *self.cfg.write().unwrap() = cfg;
+        let mut st = self.st.lock().unwrap();
+        if st.peer.is_some() {
+            let hint = st.peer.as_ref().and_then(|p| p.side_hint);
+            st.side = side.or(hint.map(Side::opposite));
+        }
+    }
+
+    /// Snapshot for the settings window.
+    pub fn status(&self) -> crate::status::Status {
+        let st = self.st.lock().unwrap();
+        let mode = self.mode.load(Ordering::SeqCst);
+        crate::status::Status {
+            peer: st.peer.as_ref().map(|p| p.name.clone()),
+            peer_os: st.peer.as_ref().map(|p| format!("{:?}", p.os)),
+            side: st.side.map(|s| format!("{s:?}").to_lowercase()),
+            controlling: mode == REMOTE,
+            controlled: mode == CONTROLLED,
+            ..Default::default()
+        }
     }
 
     pub fn on_disconnect(&self) {
@@ -480,7 +505,7 @@ impl Core {
     /// Send our clipboard text to the other computer if it changed. Runs off the input thread
     /// because reading the clipboard can block.
     fn share_clipboard(&self) {
-        if !self.cfg.clipboard {
+        if !self.cfg.read().unwrap().clipboard {
             return;
         }
         let core: &'static Core = platform::core();

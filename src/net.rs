@@ -5,7 +5,7 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -37,20 +37,25 @@ struct Active {
 struct Found {
     host: String,
     port: u16,
+    /// Pairing group tag they advertise; only peers with ours are dialed.
+    group: String,
     addrs: Vec<SocketAddr>,
 }
 
-struct Net {
-    cfg: Config,
-    psk: [u8; 32],
+pub struct Net {
+    cfg: RwLock<Config>,
+    psk: Mutex<[u8; 32]>,
     core: &'static Core,
     active: Mutex<Option<Active>>,
     next_gen: AtomicU64,
-    /// Peers found via mDNS: id -> (host name, port, addresses).
+    /// Peers found via mDNS, by id.
     found: Mutex<HashMap<String, Found>>,
+    mdns: Mutex<Option<ServiceDaemon>>,
+    /// Full name of our current mDNS registration.
+    registered: Mutex<Option<String>>,
 }
 
-pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
+pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<Arc<Net>> {
     // Retry briefly: right after a restart the previous copy may still hold the port.
     let mut tries = 0;
     let listener = loop {
@@ -65,12 +70,14 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
         }
     };
     let net = Arc::new(Net {
-        psk: cfg.psk(),
-        cfg,
+        psk: Mutex::new(cfg.psk()),
+        cfg: RwLock::new(cfg),
         core,
         active: Mutex::new(None),
         next_gen: AtomicU64::new(1),
         found: Mutex::new(HashMap::new()),
+        mdns: Mutex::new(None),
+        registered: Mutex::new(None),
     });
 
     let n = net.clone();
@@ -99,16 +106,52 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
 
     let n = net.clone();
     thread::spawn(move || n.dialer());
-    Ok(())
+    Ok(net)
 }
 
 impl Net {
+    /// Apply settings changed while running. A new pairing code takes effect right away:
+    /// we re-advertise under the new code and drop the current connection.
+    pub fn reload(&self, new: Config) {
+        let old = std::mem::replace(&mut *self.cfg.write().unwrap(), new.clone());
+        if old.code != new.code || old.name != new.name {
+            *self.psk.lock().unwrap() = new.psk();
+            if let Err(e) = self.register() {
+                warn!("Could not re-advertise: {e}");
+            }
+            if let Some(a) = self.active.lock().unwrap().as_ref() {
+                let _ = a.stream.shutdown(std::net::Shutdown::Both);
+            }
+            info!("Pairing code changed");
+        }
+    }
+
+    /// Advertise ourselves on the local network (replacing any previous advertisement).
+    fn register(&self) -> Res<()> {
+        let cfg = self.cfg.read().unwrap().clone();
+        let mdns = self.mdns.lock().unwrap();
+        let Some(mdns) = mdns.as_ref() else { return Ok(()) };
+        if let Some(old) = self.registered.lock().unwrap().take() {
+            let _ = mdns.unregister(&old);
+        }
+        let group = cfg.group();
+        let instance = format!("{}-{}", cfg.name, cfg.id);
+        let host = format!("magicinput-{}.local.", cfg.id);
+        let props = [("id", cfg.id.as_str()), ("g", group.as_str())];
+        let info = ServiceInfo::new(SERVICE, &instance, &host, "", cfg.port, &props[..])?.enable_addr_auto();
+        *self.registered.lock().unwrap() = Some(info.get_fullname().to_string());
+        mdns.register(info)?;
+        Ok(())
+    }
+
     fn dialer(self: Arc<Self>) {
         loop {
             if self.active.lock().unwrap().is_none() {
+                let cfg = self.cfg.read().unwrap().clone();
+                let group = cfg.group();
                 let mut targets: Vec<SocketAddr> = Vec::new();
-                if let Some(addr) = &self.cfg.peer_addr {
-                    let with_port = if addr.contains(':') { addr.clone() } else { format!("{addr}:{}", self.cfg.port) };
+                if let Some(addr) = &cfg.peer_addr {
+                    let with_port = if addr.contains(':') { addr.clone() } else { format!("{addr}:{}", cfg.port) };
                     targets.extend(with_port.to_socket_addrs().into_iter().flatten().filter(|a| same_lan(a.ip())));
                 }
                 // For discovered peers only the smaller id dials, so we don't race each other.
@@ -117,7 +160,7 @@ impl Net {
                     .lock()
                     .unwrap()
                     .iter()
-                    .filter(|(id, _)| self.cfg.id < **id)
+                    .filter(|(id, f)| cfg.id < **id && f.group == group)
                     .map(|(_, f)| (f.addrs.clone(), f.host.clone(), f.port))
                     .collect();
                 for (addrs, host, port) in peers {
@@ -145,16 +188,10 @@ impl Net {
 
     fn discovery(self: Arc<Self>) -> Res<()> {
         let mdns = ServiceDaemon::new()?;
-        let group = self.cfg.group();
-        let instance = format!("{}-{}", self.cfg.name, self.cfg.id);
-        let host = format!("magicinput-{}.local.", self.cfg.id);
-        let props = [("id", self.cfg.id.as_str()), ("g", group.as_str())];
-        let info = ServiceInfo::new(SERVICE, &instance, &host, "", self.cfg.port, &props[..])?
-            .enable_addr_auto();
-        mdns.register(info)?;
         let rx = mdns.browse(SERVICE)?;
+        *self.mdns.lock().unwrap() = Some(mdns);
+        self.register()?;
         thread::spawn(move || {
-            let _keep_alive = mdns;
             while let Ok(ev) = rx.recv() {
                 if let ServiceEvent::ServiceRemoved(_, fullname) = &ev {
                     // Forget addresses of computers that went away, so we stop dialing them.
@@ -164,7 +201,7 @@ impl Net {
                     let (Some(id), Some(g)) = (s.get_property_val_str("id"), s.get_property_val_str("g")) else {
                         continue;
                     };
-                    if id == self.cfg.id || g != group {
+                    if id == self.cfg.read().unwrap().id {
                         continue;
                     }
                     let addrs: Vec<SocketAddr> = s
@@ -176,7 +213,8 @@ impl Net {
                     let mut found = self.found.lock().unwrap();
                     let entry = found
                         .entry(id.to_string())
-                        .or_insert(Found { host: s.host.clone(), port: s.get_port(), addrs: Vec::new() });
+                        .or_insert(Found { host: s.host.clone(), port: s.get_port(), group: String::new(), addrs: Vec::new() });
+                    entry.group = g.to_string();
                     entry.host = s.host.clone();
                     entry.port = s.get_port();
                     if !addrs.is_empty() {
@@ -194,14 +232,16 @@ impl Net {
         prioritize(&stream);
         stream.set_read_timeout(Some(TIMEOUT))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
-        let mut noise = handshake(&mut stream, &self.psk, dialer)?;
+        let psk = *self.psk.lock().unwrap();
+        let mut noise = handshake(&mut stream, &psk, dialer)?;
 
+        let cfg = self.cfg.read().unwrap().clone();
         let hello = Msg::Hello {
-            id: self.cfg.id.clone(),
-            name: self.cfg.name.clone(),
+            id: cfg.id.clone(),
+            name: cfg.name.clone(),
             os: Os::current(),
             version: PROTOCOL_VERSION,
-            peer_side: self.cfg.peer_side,
+            peer_side: cfg.peer_side,
         };
         write_msg(&mut stream, &mut noise, &hello)?;
         let Msg::Hello { id, name, os, version, peer_side } = read_msg(&mut stream, &mut noise)? else {
@@ -210,7 +250,7 @@ impl Net {
         if version != PROTOCOL_VERSION {
             return Err(format!("{name} runs protocol v{version}, we run v{PROTOCOL_VERSION}; update both").into());
         }
-        if id == self.cfg.id {
+        if id == cfg.id {
             return Err("connected to myself".into());
         }
 
@@ -218,7 +258,7 @@ impl Net {
         let noise = Arc::new(Mutex::new(noise));
         {
             let mut active = self.active.lock().unwrap();
-            let dialer_id = if dialer { self.cfg.id.clone() } else { id.clone() };
+            let dialer_id = if dialer { cfg.id.clone() } else { id.clone() };
             if let Some(old) = active.as_ref() {
                 // Keep exactly one connection: the one dialed by the smaller id.
                 if old.peer_id == id && dialer_id < old.dialer_id {

@@ -8,6 +8,8 @@ mod net;
 mod platform;
 mod proto;
 mod service;
+mod status;
+pub mod ui;
 
 use std::io::IsTerminal;
 
@@ -27,7 +29,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Start sharing (the default)
+    /// Open the settings window (the default)
+    Settings {
+        /// Only show the menu bar / tray icon (used at login when the icon is turned on)
+        #[arg(long, hide = true)]
+        background: bool,
+    },
+    /// Run the background service that shares keyboard and mouse (started at login)
     Run,
     /// Pair computers. Without a code, makes a new one. With a code, uses the one shown on the other computer.
     Pair { code: Option<String> },
@@ -43,10 +51,14 @@ enum Cmd {
     Uninstall,
 }
 
-pub fn main() {
+/// `settings` opens the settings window. Each program passes how: the window itself (Mac, and
+/// `magicinput-app.exe` on Windows), or launching it. Keeping the window code out of the Windows
+/// background service means it never loads the web engine.
+pub fn main_with(settings: fn(bool)) {
     let cli = Cli::parse();
     let mut cfg = Config::load();
-    match cli.cmd.unwrap_or(Cmd::Run) {
+    match cli.cmd.unwrap_or(Cmd::Settings { background: false }) {
+        Cmd::Settings { background } => settings(background),
         Cmd::Run => run(cfg),
         Cmd::Pair { code } => {
             match code {
@@ -65,15 +77,13 @@ pub fn main() {
                     print_pairing(&cfg);
                 }
             }
-            service::restart();
         }
         Cmd::Side { side } => {
             if side.eq_ignore_ascii_case("auto") {
                 cfg.peer_side = None;
                 cfg.save();
                 println!("Saved: auto. Push firmly past the left or right edge to switch computers.");
-                service::restart();
-                return;
+                    return;
             }
             let Some(s) = Side::parse(&side) else { exit("Side must be auto, left, right, top or bottom") };
             cfg.peer_side = Some(s);
@@ -82,13 +92,11 @@ pub fn main() {
                 "Saved: the other computer is to the {} of this one. The other computer picks this up automatically.",
                 format!("{s:?}").to_lowercase()
             );
-            service::restart();
         }
         Cmd::Peer { addr } => {
             cfg.peer_addr = if addr == "auto" { None } else { Some(addr) };
             cfg.save();
             println!("Saved peer address: {}", cfg.peer_addr.as_deref().unwrap_or("auto-discover"));
-            service::restart();
         }
         Cmd::Config => {
             println!("{}\n", Config::path().display());
@@ -139,8 +147,14 @@ fn run(mut cfg: Config) {
     let (tx, rx) = crossbeam_channel::unbounded();
     let core = platform::install_core(core::Core::new(cfg.clone(), tx));
     std::thread::spawn(|| platform::core().replay_loop());
-    if let Err(e) = net::start(cfg.clone(), core, rx) {
-        exit(&e.to_string());
+    let net = match net::start(cfg.clone(), core, rx) {
+        Ok(n) => n,
+        Err(e) => exit(&e.to_string()),
+    };
+    std::thread::spawn(|| status::publish_loop(platform::core()));
+    std::thread::spawn(move || watch_config(core, net));
+    if cfg.show_tray {
+        ui::launch(true);
     }
     let _ = ctrlc::set_handler(|| {
         platform::cleanup();
@@ -151,6 +165,25 @@ fn run(mut cfg: Config) {
     log::info!("Looking for your other computer… (Ctrl+Alt+Esc / Control+Option+Esc brings the pointer back)");
     if let Err(e) = platform::run_capture() {
         exit(&e);
+    }
+}
+
+/// Apply changes the settings window saves to the config file, without restarting.
+fn watch_config(core: &'static core::Core, net: std::sync::Arc<net::Net>) {
+    let modified = || std::fs::metadata(Config::path()).and_then(|m| m.modified()).ok();
+    let mut last = modified();
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let now = modified();
+        if now == last {
+            continue;
+        }
+        last = now;
+        if let Some(cfg) = Config::read() {
+            log::info!("Settings changed");
+            core.reload(cfg.clone());
+            net.reload(cfg);
+        }
     }
 }
 

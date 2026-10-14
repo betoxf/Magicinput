@@ -8,8 +8,9 @@ cargo build --release
 APP=dist/MagicInput.app
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp target/release/magicinput "$APP/Contents/MacOS/magicinput"
+cp assets/MagicInput.icns "$APP/Contents/Resources/MagicInput.icns"
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -24,6 +25,8 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSUIElement</key><true/>
   <key>LSAppNapIsDisabled</key><true/>
+  <key>CFBundleIconFile</key><string>MagicInput</string>
+  <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 EOF

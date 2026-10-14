@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2E2A8F"/><stop offset="0.55" stop-color="#5B3FD9"/><stop offset="1" stop-color="#9B5CF6"/></linearGradient>
+ <radialGradient id="glow" cx="0.72" cy="0.26" r="0.5"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.35"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF6C8"/><stop offset="0.6" stop-color="#FFD25A"/><stop offset="1" stop-color="#FFAE1F"/></linearGradient>
+ <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#120A40" flood-opacity="0.45"/></filter>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+<g transform="translate(236,236) scale(23)">
+ <path d="M5,3.2 L5,18.6 L8.9,14.9 L11.7,20.9 L14.1,19.8 L11.4,13.9 L16.6,13.6 Z" fill="#fff" filter="url(#sh)" stroke="#1B1450" stroke-width="0.35" stroke-linejoin="round"/>
+ <path d="M18.4,2.3 C18.994,5.005999999999999 18.994,5.005999999999999 21.7,5.6 C18.994,6.194 18.994,6.194 18.4,8.899999999999999 C17.805999999999997,6.194 17.805999999999997,6.194 15.099999999999998,5.6 C17.805999999999997,5.005999999999999 17.805999999999997,5.005999999999999 18.4,2.3 Z M21.6,8.8 C21.888,10.112 21.888,10.112 23.200000000000003,10.4 C21.888,10.688 21.888,10.688 21.6,12.0 C21.312,10.688 21.312,10.688 20.0,10.4 C21.312,10.112 21.312,10.112 21.6,8.8 Z M13.6,1.4500000000000002 C13.807,2.3930000000000002 13.807,2.3930000000000002 14.75,2.6 C13.807,2.807 13.807,2.807 13.6,3.75 C13.392999999999999,2.807 13.392999999999999,2.807 12.45,2.6 C13.392999999999999,2.3930000000000002 13.392999999999999,2.3930000000000002 13.6,1.4500000000000002 Z" fill="url(#gold)"/>
+</g>
+</svg>

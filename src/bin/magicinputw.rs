@@ -1,6 +1,6 @@
-// Same program without a console window, for starting at login on Windows.
+// The background service on Windows: no console window, and no settings window code.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 fn main() {
-    magicinput::main();
+    magicinput::main_with(magicinput::ui::launch);
 }
