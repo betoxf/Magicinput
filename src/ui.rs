@@ -21,9 +21,7 @@ use wry::{WebView, WebViewBuilder};
 use crate::config::{self, Config, Layout};
 use crate::geom::{self, Placement, Rect};
 use crate::proto::Side;
-#[cfg(not(target_os = "macos"))]
-use crate::platform;
-use crate::{service, status};
+use crate::{platform, service, status};
 
 /// Local port a running window listens on, so opening the app again just brings it forward.
 const UI_PORT: u16 = 24843;
@@ -182,11 +180,17 @@ pub fn run(background: bool) {
                         c.peer_side = None;
                         c.layout_time = now_ms();
                     }),
+                    #[cfg(target_os = "macos")]
+                    "move_display" => {
+                        if let (Some(id), Some(x), Some(y)) = (v["id"].as_u64(), v["x"].as_f64(), v["y"].as_f64()) {
+                            move_display(id as u32, x, y);
+                        }
+                    }
                     "arrange" => {
                         let st = status::read();
                         let side = v["side"].as_str().and_then(Side::parse);
                         let offset = v["offset"].as_f64();
-                        let mine = st.as_ref().map(|s| s.screens.clone()).unwrap_or_default();
+                        let mine: Vec<Rect> = own_displays(&st, &names).into_iter().map(|d| d.0).collect();
                         let theirs = st.as_ref().and_then(|s| geom::union(&s.peer_screens)).unwrap_or(PLACEHOLDER);
                         if let (Some(side), Some(offset), false) = (side, offset, mine.is_empty()) {
                             let length = geom::along_extent(&theirs, side).1;
@@ -225,7 +229,7 @@ pub fn run(background: bool) {
 fn open_window(target: &tao::event_loop::EventLoopWindowTarget<UserEvent>, proxy: &EventLoopProxy<UserEvent>) -> Option<(Window, WebView)> {
     let window = WindowBuilder::new()
         .with_title("MagicInput")
-        .with_inner_size(LogicalSize::new(400.0, 800.0))
+        .with_inner_size(LogicalSize::new(400.0, 830.0))
         .with_resizable(false)
         .build(target)
         .ok()?;
@@ -368,16 +372,50 @@ fn placement_here(c: &Config, mine: &[Rect]) -> Option<Placement> {
     Some(l.placement().mirrored(&geom::union(&l.owner_screens)?, &geom::union(mine)?))
 }
 
+/// This computer's displays: rectangle, an id that can be moved (`None` if it can't), main or not.
+fn own_displays(st: &Option<status::Status>, names: &[(Rect, String)]) -> Vec<(Rect, Option<u32>, bool)> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (st, names);
+        platform::display_list().into_iter().map(|(id, r, main)| (r, Some(id), main)).collect()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let rs: Vec<Rect> = match st {
+            Some(s) if !s.screens.is_empty() => s.screens.clone(),
+            _ => names.iter().map(|n| n.0).collect(),
+        };
+        rs.into_iter().map(|r| (r, None, r.x == 0.0 && r.y == 0.0)).collect()
+    }
+}
+
+/// Move one of this computer's displays (Mac). The arrangement with the other computer is
+/// re-saved against the new screen positions so both computers stay in step.
+#[cfg(target_os = "macos")]
+fn move_display(id: u32, x: f64, y: f64) {
+    let before: Vec<Rect> = platform::display_list().into_iter().map(|d| d.1).collect();
+    if let Err(e) = platform::move_display(id, x, y) {
+        log::warn!("move display: {e}");
+        return;
+    }
+    let after: Vec<Rect> = platform::display_list().into_iter().map(|d| d.1).collect();
+    let c = Config::load();
+    if let Some(p) = placement_here(&c, &before) {
+        save(|c| {
+            c.layout = Some(Layout { side: p.side, offset: p.offset, length: p.length, owner: c.id.clone(), owner_screens: after });
+            c.layout_time = now_ms();
+        });
+    }
+}
+
 fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> String {
     let c = Config::load();
-    let mine: Vec<Rect> = match st {
-        Some(s) if !s.screens.is_empty() => s.screens.clone(),
-        _ => names.iter().map(|n| n.0).collect(),
-    };
+    let own = own_displays(st, names);
+    let mine: Vec<Rect> = own.iter().map(|d| d.0).collect();
     // Label each screen with the closest display name.
-    let screens: Vec<Value> = mine
+    let screens: Vec<Value> = own
         .iter()
-        .map(|r| {
+        .map(|(r, id, main)| {
             let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
             let name = names
                 .iter()
@@ -387,7 +425,7 @@ fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> 
                 })
                 .map(|n| n.1.clone())
                 .unwrap_or_default();
-            json!({ "x": r.x, "y": r.y, "w": r.w, "h": r.h, "name": name })
+            json!({ "x": r.x, "y": r.y, "w": r.w, "h": r.h, "name": name, "id": id, "main": main })
         })
         .collect();
     let peer = st.as_ref().and_then(|s| geom::union(&s.peer_screens)).unwrap_or(PLACEHOLDER);

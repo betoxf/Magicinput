@@ -74,6 +74,11 @@ unsafe extern "C" {
     fn CGDisplayShowCursor(display: u32) -> i32;
     fn CGGetActiveDisplayList(max: u32, displays: *mut u32, count: *mut u32) -> i32;
     fn CGDisplayBounds(display: u32) -> CGRect;
+    fn CGDisplayIsMain(display: u32) -> u32;
+    fn CGBeginDisplayConfiguration(config: *mut Ref) -> i32;
+    fn CGConfigureDisplayOrigin(config: Ref, display: u32, x: i32, y: i32) -> i32;
+    fn CGCompleteDisplayConfiguration(config: Ref, option: u32) -> i32;
+    fn CGCancelDisplayConfiguration(config: Ref) -> i32;
 
     fn AXIsProcessTrusted() -> u8;
     fn CGPreflightListenEventAccess() -> bool;
@@ -292,6 +297,41 @@ fn cursor_pos() -> CGPoint {
 /// Pixels per logical point for pointer movement (macOS already works in points).
 pub fn pointer_scale() -> f64 {
     1.0
+}
+
+/// Displays with their ids, and whether each is the main one (the one with the menu bar).
+pub fn display_list() -> Vec<(u32, Rect, bool)> {
+    unsafe {
+        let mut ids = [0u32; 16];
+        let mut n = 0u32;
+        CGGetActiveDisplayList(16, ids.as_mut_ptr(), &mut n);
+        ids[..n as usize]
+            .iter()
+            .map(|&id| {
+                let b = CGDisplayBounds(id);
+                (id, Rect { x: b.origin.x, y: b.origin.y, w: b.size.width, h: b.size.height }, CGDisplayIsMain(id) != 0)
+            })
+            .collect()
+    }
+}
+
+/// Move a display in the arrangement, like dragging it in System Settings → Displays.
+pub fn move_display(id: u32, x: f64, y: f64) -> Result<(), String> {
+    unsafe {
+        let mut config: Ref = null_mut();
+        if CGBeginDisplayConfiguration(&mut config) != 0 {
+            return Err("could not start display configuration".into());
+        }
+        if CGConfigureDisplayOrigin(config, id, x.round() as i32, y.round() as i32) != 0 {
+            CGCancelDisplayConfiguration(config);
+            return Err("could not move that display".into());
+        }
+        // 2 = kCGConfigurePermanently: keep it after restarts, like System Settings does.
+        if CGCompleteDisplayConfiguration(config, 2) != 0 {
+            return Err("macOS didn't accept the new arrangement".into());
+        }
+    }
+    Ok(())
 }
 
 pub fn displays() -> Vec<Rect> {

@@ -89,7 +89,7 @@ pub fn install() -> Result<String, String> {
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         for name in ["magicinput.exe", "magicinputw.exe", "magicinput-app.exe", "WebView2Loader.dll"] {
             std::fs::copy(src_dir.join(name), dir.join(name))
-                .map_err(|e| format!("copy {name} to {}: {e} (keep both exes in the same folder)", dir.display()))?;
+                .map_err(|e| format!("copy {name} to {}: {e} (keep all the MagicInput files in one folder)", dir.display()))?;
         }
     }
 
