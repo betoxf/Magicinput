@@ -24,10 +24,14 @@ time, macOS asks for permission. Turn on **MagicInput** under System Settings â†
 magicinput.exe pair K7QP-3MZD
 ```
 
-**3. Say where the screens are**, on either computer (the other one works it out):
+**3. Go.** By default you don't have to set anything up: push the pointer firmly past the left or
+right edge of the screen and it jumps to the other computer, then comes back through the same edge.
+If your setup is fixed, pin it so the switch happens without the firm push (on either computer;
+the other one works it out):
 
 ```
 magicinput side right     # the PC is to the right of the Mac
+magicinput side auto      # back to the default
 ```
 
 Allow magicinput through the Windows firewall when asked (private networks).
@@ -38,7 +42,7 @@ Allow magicinput through the Windows firewall when asked (private networks).
 | --- | --- |
 | `magicinput` | Start sharing |
 | `magicinput pair [CODE]` | Make a new pairing code, or use the other computer's |
-| `magicinput side left\|right\|top\|bottom` | Where the other computer's screen is |
+| `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer's screen is (auto by default) |
 | `magicinput peer 192.168.1.20` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput config` | Show settings and the config file path |
 

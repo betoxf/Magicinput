@@ -24,6 +24,9 @@ const REMOTE: u8 = 1;
 const CONTROLLED: u8 = 2;
 
 const MAX_CLIPBOARD: usize = 60_000;
+/// In auto mode (no side configured) you have to push this far past the edge, so brushing
+/// against it doesn't switch computers.
+const AUTO_PUSH: f64 = 120.0;
 
 /// Input captured from this computer's own keyboard and mouse.
 #[derive(Debug, Clone, Copy)]
@@ -43,7 +46,12 @@ pub struct Peer {
 
 struct State {
     peer: Option<Peer>,
+    /// Configured (or inferred) side of the other computer; `None` = auto (left or right).
     side: Option<Side>,
+    /// The edge the current crossing went through, on this computer.
+    active_side: Side,
+    /// How far past the edge the user has pushed so far (auto mode).
+    push: f64,
     local_buttons: HashSet<Button>,
     /// Keys we are forwarding (controller side), to spot the escape hotkey.
     forwarded_keys: HashSet<u16>,
@@ -74,6 +82,8 @@ impl Core {
             st: Mutex::new(State {
                 peer: None,
                 side: None,
+                active_side: Side::Right,
+                push: 0.0,
                 local_buttons: HashSet::new(),
                 forwarded_keys: HashSet::new(),
                 injected_keys: HashSet::new(),
@@ -140,36 +150,51 @@ impl Core {
                         }
                     }
                     LocalEvent::Move { x, y, dx, dy } => {
-                        let Some(side) = st.side else { return false };
                         if st.peer.is_none()
                             || !st.local_buttons.is_empty()
                             || st.last_switch.elapsed() < Duration::from_millis(300)
                         {
+                            st.push = 0.0;
                             return false;
                         }
-                        let outward = match side {
+                        let ds = self.displays(&mut st);
+                        let candidates = match st.side {
+                            Some(s) => vec![s],
+                            None => vec![Side::Left, Side::Right],
+                        };
+                        let outward = |side: Side| match side {
                             Side::Left => -dx,
                             Side::Right => dx,
                             Side::Top => -dy,
                             Side::Bottom => dy,
                         };
-                        // On Windows the hook reports positions already clamped to the screen, so a
-                        // push against the edge can show up as zero movement.
-                        let pushing = if cfg!(windows) { outward >= 0.0 } else { outward > 0.0 };
-                        let ds = self.displays(&mut st);
-                        if pushing && geom::at_edge(&ds, x, y, side) {
-                            let ratio = geom::ratio_on_side(&ds, x, y, side);
-                            self.mode.store(REMOTE, Ordering::SeqCst);
-                            st.last_switch = Instant::now();
-                            st.forwarded_keys.clear();
-                            platform::grab_begin();
-                            self.send(Msg::Enter { ratio });
-                            let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
-                            info!("→ controlling {name}");
-                            drop(st);
-                            self.share_clipboard();
-                            return true;
+                        // On Windows the hook may report positions already clamped to the screen,
+                        // so a push against the edge can show up as zero movement.
+                        let hit = candidates.into_iter().find(|&s| {
+                            let o = outward(s);
+                            (if cfg!(windows) { o >= 0.0 } else { o > 0.0 }) && geom::at_edge(&ds, x, y, s)
+                        });
+                        let Some(side) = hit else {
+                            st.push = 0.0;
+                            return false;
+                        };
+                        st.push += outward(side).max(if cfg!(windows) { 8.0 } else { 0.0 });
+                        if st.side.is_none() && st.push < AUTO_PUSH {
+                            return false;
                         }
+                        let ratio = geom::ratio_on_side(&ds, x, y, side);
+                        self.mode.store(REMOTE, Ordering::SeqCst);
+                        st.push = 0.0;
+                        st.active_side = side;
+                        st.last_switch = Instant::now();
+                        st.forwarded_keys.clear();
+                        platform::grab_begin();
+                        self.send(Msg::Enter { ratio, side });
+                        let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                        info!("→ controlling {name}");
+                        drop(st);
+                        self.share_clipboard();
+                        return true;
                     }
                     _ => {}
                 }
@@ -190,12 +215,14 @@ impl Core {
         let mut st = self.st.lock().unwrap();
         let mode = self.mode.load(Ordering::SeqCst);
         match msg {
-            Msg::Enter { ratio } => {
+            Msg::Enter { ratio, side: their_side } => {
                 if mode == REMOTE {
                     // Both pushed at once; let theirs win and give ours back.
                     self.come_home(&mut st, 0.5);
                 }
-                let side = st.side.unwrap_or(Side::Left);
+                // Leaving their right edge means arriving at our left edge.
+                let side = their_side.opposite();
+                st.active_side = side;
                 let ds = self.displays(&mut st);
                 let p = geom::entry_point(&ds, side, ratio, 1.0);
                 platform::warp(p.0, p.1);
@@ -218,7 +245,7 @@ impl Core {
                 _ => {}
             },
             Msg::Move { dx, dy } if mode == CONTROLLED => {
-                let side = st.side.unwrap_or(Side::Left);
+                let side = st.active_side;
                 let (dx, dy) = (dx * self.cfg.mouse_speed, dy * self.cfg.mouse_speed);
                 let ds = self.displays(&mut st);
                 let cur = st.cur;
@@ -292,8 +319,8 @@ impl Core {
                 format!("{s:?}").to_lowercase(),
                 peer.name
             ),
-            None => warn!(
-                "Don't know where {} is yet. Run `magicinput side left|right|top|bottom` on either computer.",
+            None => info!(
+                "Push firmly past the left or right edge of the screen to reach {}",
                 peer.name
             ),
         }
@@ -317,9 +344,8 @@ impl Core {
 
     /// Controller side: stop forwarding and put the cursor back at our edge.
     fn come_home(&self, st: &mut State, ratio: f64) {
-        let side = st.side.unwrap_or(Side::Right);
         let ds = self.displays(st);
-        let p = geom::entry_point(&ds, side, ratio, 2.0);
+        let p = geom::entry_point(&ds, st.active_side, ratio, 2.0);
         self.mode.store(LOCAL, Ordering::SeqCst);
         st.last_switch = Instant::now();
         st.forwarded_keys.clear();

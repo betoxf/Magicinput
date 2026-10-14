@@ -28,7 +28,7 @@ enum Cmd {
     Run,
     /// Pair computers. Without a code, makes a new one. With a code, uses the one shown on the other computer.
     Pair { code: Option<String> },
-    /// Where the other computer's screen is relative to this one: left, right, top or bottom
+    /// Where the other computer's screen is: auto (default), left, right, top or bottom
     Side { side: String },
     /// Connect to a fixed address when automatic discovery doesn't work (use "auto" to clear)
     Peer { addr: String },
@@ -61,7 +61,13 @@ fn main() {
             run(cfg);
         }
         Cmd::Side { side } => {
-            let Some(s) = Side::parse(&side) else { exit("Side must be left, right, top or bottom") };
+            if side.eq_ignore_ascii_case("auto") {
+                cfg.peer_side = None;
+                cfg.save();
+                println!("Saved: auto. Push firmly past the left or right edge to switch computers.");
+                return;
+            }
+            let Some(s) = Side::parse(&side) else { exit("Side must be auto, left, right, top or bottom") };
             cfg.peer_side = Some(s);
             cfg.save();
             println!(

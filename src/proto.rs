@@ -75,8 +75,9 @@ pub enum Msg {
         /// The sender's configured side, so the other end can infer its own.
         peer_side: Option<Side>,
     },
-    /// Controller -> target: the cursor crossed over; `ratio` is the position along the edge (0..1).
-    Enter { ratio: f64 },
+    /// Controller -> target: the cursor crossed over the controller's `side` edge;
+    /// `ratio` is the position along that edge (0..1).
+    Enter { ratio: f64, side: Side },
     /// Target -> controller: the cursor crossed back.
     Leave { ratio: f64 },
     Move { dx: f64, dy: f64 },
