@@ -132,22 +132,22 @@ static INJECT: Mutex<Inject> = Mutex::new(Inject { mods: Vec::new(), buttons: Ve
 
 pub fn init() -> Result<(), String> {
     unsafe {
-        let trusted = AXIsProcessTrusted() != 0;
-        let listen = CGPreflightListenEventAccess();
-        if !trusted || !listen {
+        let granted = || AXIsProcessTrusted() != 0 && CGPreflightListenEventAccess();
+        if !granted() {
             CGRequestListenEventAccess();
             CGRequestPostEventAccess();
             let _ = std::process::Command::new("open")
                 .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
                 .status();
-            return Err(format!(
-                "magicinput needs permission to use the keyboard and mouse.\n\
-                 In System Settings → Privacy & Security, turn on MagicInput (or the terminal app you started it from) \
-                 under both Accessibility and Input Monitoring, then run magicinput again.\n\
-                 (Accessibility: {}, Input Monitoring: {})",
-                if trusted { "ok" } else { "missing" },
-                if listen { "ok" } else { "missing" }
-            ));
+            let msg = "magicinput needs permission to use the keyboard and mouse. In System Settings → \
+                       Privacy & Security, turn on MagicInput (or the terminal app you started it from) under \
+                       both Accessibility and Input Monitoring. Waiting…";
+            log::warn!("{msg}");
+            // Keep waiting instead of exiting, so it just starts working once allowed.
+            while !granted() {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+            log::info!("Permission granted");
         }
         let src = CGEventSourceCreate(0); // combined session state
         CGEventSourceSetLocalEventsSuppressionInterval(src, 0.0);
@@ -287,6 +287,11 @@ fn cursor_pos() -> CGPoint {
         CFRelease(e);
         p
     }
+}
+
+/// Pixels per logical point for pointer movement (macOS already works in points).
+pub fn pointer_scale() -> f64 {
+    1.0
 }
 
 pub fn displays() -> Vec<Rect> {

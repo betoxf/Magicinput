@@ -111,7 +111,11 @@ impl Core {
         match self.mode.load(Ordering::SeqCst) {
             REMOTE => {
                 match ev {
-                    LocalEvent::Move { dx, dy, .. } => self.send(Msg::Move { dx, dy }),
+                    // Movement travels in logical units (points), so each screen's scaling is respected.
+                    LocalEvent::Move { dx, dy, .. } => {
+                        let s = platform::pointer_scale();
+                        self.send(Msg::Move { dx: dx / s, dy: dy / s })
+                    }
                     LocalEvent::Button { button, down } => self.send(Msg::Button { button, down }),
                     LocalEvent::Wheel { dx, dy } => self.send(Msg::Wheel { dx, dy }),
                     LocalEvent::Key { hid, down } => {
@@ -168,30 +172,32 @@ impl Core {
                             Side::Top => -dy,
                             Side::Bottom => dy,
                         };
-                        // On Windows the hook may report positions already clamped to the screen,
-                        // so a push against the edge can show up as zero movement.
+                        // On Windows the hook may report positions already clamped to the screen, so a
+                        // push against the edge can show up as a move of zero. Sliding along the edge
+                        // (dy != 0) is not a push.
+                        let clamped_push = cfg!(windows) && dx == 0.0 && dy == 0.0;
                         let hit = candidates.into_iter().find(|&s| {
-                            let o = outward(s);
-                            (if cfg!(windows) { o >= 0.0 } else { o > 0.0 }) && geom::at_edge(&ds, x, y, s)
+                            (outward(s) > 0.0 || clamped_push) && geom::at_edge(&ds, x, y, s)
                         });
                         let Some(side) = hit else {
                             st.push = 0.0;
                             return false;
                         };
-                        st.push += outward(side).max(if cfg!(windows) { 8.0 } else { 0.0 });
+                        st.push += if clamped_push { 8.0 } else { outward(side) };
                         if st.side.is_none() && st.push < AUTO_PUSH {
                             return false;
                         }
                         let ratio = geom::ratio_on_side(&ds, x, y, side);
                         self.mode.store(REMOTE, Ordering::SeqCst);
                         st.push = 0.0;
+                        st.local_buttons.clear();
                         st.active_side = side;
                         st.last_switch = Instant::now();
                         st.forwarded_keys.clear();
                         platform::grab_begin();
                         self.send(Msg::Enter { ratio, side });
                         let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
-                        info!("→ controlling {name}");
+                        info!("→ controlling {name} (via the {} edge)", format!("{side:?}").to_lowercase());
                         drop(st);
                         self.share_clipboard();
                         return true;
@@ -228,6 +234,8 @@ impl Core {
                 platform::warp(p.0, p.1);
                 st.cur = p;
                 st.last_switch = Instant::now();
+                st.push = 0.0;
+                st.local_buttons.clear();
                 self.mode.store(CONTROLLED, Ordering::SeqCst);
                 let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
                 info!("← {name} is controlling this computer");
@@ -246,7 +254,8 @@ impl Core {
             },
             Msg::Move { dx, dy } if mode == CONTROLLED => {
                 let side = st.active_side;
-                let (dx, dy) = (dx * self.cfg.mouse_speed, dy * self.cfg.mouse_speed);
+                let k = self.cfg.mouse_speed * platform::pointer_scale();
+                let (dx, dy) = (dx * k, dy * k);
                 let ds = self.displays(&mut st);
                 let cur = st.cur;
                 let p = (cur.0 + dx, cur.1 + dy);
@@ -257,7 +266,10 @@ impl Core {
                         self.release_injected(&mut st);
                         self.mode.store(LOCAL, Ordering::SeqCst);
                         st.last_switch = Instant::now();
+                        st.local_buttons.clear();
                         self.send(Msg::Leave { ratio });
+                        let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                        info!("→ back to {name}");
                         drop(st);
                         self.share_clipboard();
                     }
@@ -349,6 +361,8 @@ impl Core {
         self.mode.store(LOCAL, Ordering::SeqCst);
         st.last_switch = Instant::now();
         st.forwarded_keys.clear();
+        st.local_buttons.clear();
+        st.push = 0.0;
         platform::grab_end(p.0, p.1);
     }
 

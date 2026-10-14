@@ -13,28 +13,36 @@ in both directions, so whichever computer's keyboard and mouse you have in front
 
 ## Setup
 
-**1. Mac**: build the app with `./scripts/bundle-mac.sh` and open `dist/MagicInput.app`. The first
-time, macOS asks for permission. Turn on **MagicInput** under System Settings → Privacy & Security
-→ **Accessibility** and **Input Monitoring**, then open it again.
+**Mac**: build the app with `./scripts/bundle-mac.sh`, then run
+`dist/MagicInput.app/Contents/MacOS/magicinput install`. The first time, macOS asks for
+permission: turn on **MagicInput** under System Settings → Privacy & Security → **Accessibility**
+and **Input Monitoring**. It starts working as soon as both are on, and from then on it starts by
+itself every time you log in.
 
-**2. Pair.** The first run creates a pairing code (shown in the terminal, or in
-`~/Library/Application Support/magicinput/magicinput.log`). On the PC run:
+**Windows**: put `magicinput.exe` and `magicinputw.exe` in the same folder and run, from a
+terminal opened as administrator:
 
 ```
-magicinput.exe pair K7QP-3MZD
+magicinput.exe pair K7QP-3MZD     # the code the Mac shows (first line of its log)
+magicinput.exe install
 ```
 
-**3. Go.** By default you don't have to set anything up: push the pointer firmly past the left or
-right edge of the screen and it jumps to the other computer, then comes back through the same edge.
+`install` copies both to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every
+login (no window, with admin rights so it also works over admin apps), and allows it through the
+firewall on private networks.
+
+**Use it.** By default nothing needs setting up: push the pointer firmly past the left or right
+edge of the screen and it jumps to the other computer, then comes back through the same edge.
 If your setup is fixed, pin it so the switch happens without the firm push (on either computer;
 the other one works it out):
 
 ```
-magicinput side right     # the PC is to the right of the Mac
+magicinput side right     # the other computer is to the right of this one
 magicinput side auto      # back to the default
 ```
 
-Allow magicinput through the Windows firewall when asked (private networks).
+It only ever talks to computers on the same local network (same subnet): VPNs such as Tailscale
+and the internet are refused.
 
 ## Commands
 
@@ -45,6 +53,7 @@ Allow magicinput through the Windows firewall when asked (private networks).
 | `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer's screen is (auto by default) |
 | `magicinput peer 192.168.1.20` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput config` | Show settings and the config file path |
+| `magicinput install` / `uninstall` | Start (or stop starting) at login |
 
 Settings live in `config.toml` (`magicinput config` prints where): `mouse_speed`,
 `scroll_speed`, `swap_ctrl_cmd`, `clipboard`, `port` (default 24842).
@@ -57,9 +66,14 @@ cargo build --release --target x86_64-pc-windows-gnu    # Windows .exe from a Ma
 ./scripts/bundle-mac.sh                                 # signed MagicInput.app
 ```
 
+## Footprint
+
+Idle it uses about 0.1% CPU and 12–20 MB of memory. Bursts of pointer movement are merged
+before sending, and on a Mac its traffic is marked as interactive so Wi-Fi gives it priority.
+
 ## Known limits
 
-- Windows won't let a normal program control windows running as administrator. Run magicinput as
-  administrator if you need to use those.
+- Over Wi-Fi, AirDrop/Sidecar/iPad mirroring (AWDL) make the Mac's Wi-Fi pause briefly now and
+  then, which shows up as occasional pointer hiccups. Wired or the same Wi-Fi band helps.
 - Text only for the clipboard (no files or images yet).
 - Two computers at a time.

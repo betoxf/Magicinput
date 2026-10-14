@@ -120,6 +120,9 @@ fn random_string(len: usize, alphabet: &[u8]) -> String {
 }
 
 fn hostname() -> String {
+    if let Ok(name) = std::env::var("COMPUTERNAME") {
+        return name;
+    }
     std::process::Command::new("hostname")
         .output()
         .ok()

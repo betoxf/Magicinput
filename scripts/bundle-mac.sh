@@ -23,6 +23,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSUIElement</key><true/>
+  <key>LSAppNapIsDisabled</key><true/>
 </dict>
 </plist>
 EOF

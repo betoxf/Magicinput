@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use windows_sys::Win32::Foundation::{LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext};
+use windows_sys::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForSystem, SetProcessDpiAwarenessContext};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
@@ -29,6 +29,8 @@ static SCROLL_REM: Mutex<(f64, f64)> = Mutex::new((0.0, 0.0));
 pub fn init() -> Result<(), String> {
     unsafe {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        // In case a previous run was killed while the cursor was hidden.
+        SystemParametersInfoW(SPI_SETCURSORS, 0, null_mut(), 0);
     }
     Ok(())
 }
@@ -129,6 +131,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         };
         if swallow { 1 } else { CallNextHookEx(null_mut(), code, wparam, lparam) }
     }
+}
+
+/// Pixels per logical point for pointer movement (the display scaling, e.g. 1.5 at 150%).
+pub fn pointer_scale() -> f64 {
+    (unsafe { GetDpiForSystem() } as f64 / 96.0).max(1.0)
 }
 
 pub fn displays() -> Vec<Rect> {

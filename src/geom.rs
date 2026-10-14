@@ -58,16 +58,24 @@ fn union(ds: &[Rect]) -> Option<Rect> {
 }
 
 /// Is the point on the outer `side` edge of the arrangement (no display beyond it)?
+/// The point may lie past the edge (Windows reports where the pointer *would* go).
 pub fn at_edge(ds: &[Rect], x: f64, y: f64, side: Side) -> bool {
-    let Some(d) = ds.iter().copied().find(|d| d.contains(x, y)) else {
-        return false;
-    };
+    let Some(d) = display_for(ds, x, y) else { return false };
+    let (cx, cy) = d.clamp(x, y);
     let (on_edge, bx, by) = match side {
-        Side::Left => (x < d.x + 1.0, d.x - 0.5, y),
-        Side::Right => (x >= d.right() - 1.0, d.right(), y),
-        Side::Top => (y < d.y + 1.0, x, d.y - 0.5),
-        Side::Bottom => (y >= d.bottom() - 1.0, x, d.bottom()),
+        Side::Left => (x < d.x + 1.0, d.x - 0.5, cy),
+        Side::Right => (x >= d.right() - 1.0, d.right(), cy),
+        Side::Top => (y < d.y + 1.0, cx, d.y - 0.5),
+        Side::Bottom => (y >= d.bottom() - 1.0, cx, d.bottom()),
     };
+    // A point beyond a different edge (e.g. far below the screen) doesn't count.
+    let off_axis = match side {
+        Side::Left | Side::Right => y - cy,
+        Side::Top | Side::Bottom => x - cx,
+    };
+    if off_axis.abs() > 1.0 {
+        return false;
+    }
     on_edge && !in_any(ds, bx, by)
 }
 
@@ -149,6 +157,10 @@ mod tests {
         assert!(at_edge(&ds, 0.0, 300.0, Side::Left));
         assert!(at_edge(&ds, 10.0, 0.0, Side::Top));
         assert!(at_edge(&ds, 10.0, 899.5, Side::Bottom));
+        // Reported past the edge (Windows low-level hook).
+        assert!(at_edge(&ds, 1500.0, 300.0, Side::Right));
+        assert!(at_edge(&ds, -40.0, 300.0, Side::Left));
+        assert!(!at_edge(&ds, 1500.0, 300.0, Side::Left));
     }
 
     #[test]

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -34,19 +34,36 @@ struct Active {
     noise: Arc<Mutex<TransportState>>,
 }
 
+struct Found {
+    host: String,
+    port: u16,
+    addrs: Vec<SocketAddr>,
+}
+
 struct Net {
     cfg: Config,
     psk: [u8; 32],
     core: &'static Core,
     active: Mutex<Option<Active>>,
     next_gen: AtomicU64,
-    /// Peers found via mDNS: id -> addresses.
-    found: Mutex<HashMap<String, Vec<SocketAddr>>>,
+    /// Peers found via mDNS: id -> (host name, port, addresses).
+    found: Mutex<HashMap<String, Found>>,
 }
 
 pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
-    let listener = TcpListener::bind(("0.0.0.0", cfg.port))
-        .map_err(|e| format!("can't listen on port {}: {e}", cfg.port))?;
+    // Retry briefly: right after a restart the previous copy may still hold the port.
+    let mut tries = 0;
+    let listener = loop {
+        match TcpListener::bind(("0.0.0.0", cfg.port)) {
+            Ok(l) => break l,
+            Err(e) if tries < 20 => {
+                debug!("port {} busy ({e}), retrying", cfg.port);
+                tries += 1;
+                thread::sleep(Duration::from_millis(500));
+            }
+            Err(e) => return Err(format!("can't listen on port {} (is magicinput already running?): {e}", cfg.port).into()),
+        }
+    };
     let net = Arc::new(Net {
         psk: cfg.psk(),
         cfg,
@@ -59,9 +76,13 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<()> {
     let n = net.clone();
     thread::spawn(move || {
         for stream in listener.incoming().flatten() {
+            let Ok(addr) = stream.peer_addr() else { continue };
+            if !same_lan(addr.ip()) {
+                debug!("Ignoring connection from {addr}: not on this local network");
+                continue;
+            }
             let n = n.clone();
             thread::spawn(move || {
-                let addr = stream.peer_addr().ok();
                 if let Err(e) = n.establish(stream, false) {
                     warn!("Incoming connection from {addr:?} failed: {e} (different pairing code?)");
                 }
@@ -88,13 +109,25 @@ impl Net {
                 let mut targets: Vec<SocketAddr> = Vec::new();
                 if let Some(addr) = &self.cfg.peer_addr {
                     let with_port = if addr.contains(':') { addr.clone() } else { format!("{addr}:{}", self.cfg.port) };
-                    targets.extend(with_port.to_socket_addrs().into_iter().flatten());
+                    targets.extend(with_port.to_socket_addrs().into_iter().flatten().filter(|a| same_lan(a.ip())));
                 }
                 // For discovered peers only the smaller id dials, so we don't race each other.
-                for (id, addrs) in self.found.lock().unwrap().iter() {
-                    if self.cfg.id < *id {
-                        targets.extend(addrs.iter().copied());
-                    }
+                let peers: Vec<(Vec<SocketAddr>, String, u16)> = self
+                    .found
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(id, _)| self.cfg.id < **id)
+                    .map(|(_, f)| (f.addrs.clone(), f.host.clone(), f.port))
+                    .collect();
+                for (addrs, host, port) in peers {
+                    // mDNS sometimes reports the service before its address; ask the system resolver.
+                    let addrs = if addrs.is_empty() {
+                        (host.trim_end_matches('.'), port).to_socket_addrs().map(|a| a.collect()).unwrap_or_default()
+                    } else {
+                        addrs
+                    };
+                    targets.extend(addrs.into_iter().filter(|a| a.is_ipv4() && same_lan(a.ip())));
                 }
                 for addr in targets {
                     match TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
@@ -106,14 +139,14 @@ impl Net {
                     }
                 }
             }
-            thread::sleep(Duration::from_secs(2));
+            thread::sleep(Duration::from_secs(3));
         }
     }
 
     fn discovery(self: Arc<Self>) -> Res<()> {
         let mdns = ServiceDaemon::new()?;
         let group = self.cfg.group();
-        let instance = format!("{}-{}", self.cfg.name, &self.cfg.id[..4]);
+        let instance = format!("{}-{}", self.cfg.name, self.cfg.id);
         let host = format!("magicinput-{}.local.", self.cfg.id);
         let props = [("id", self.cfg.id.as_str()), ("g", group.as_str())];
         let info = ServiceInfo::new(SERVICE, &instance, &host, "", self.cfg.port, &props[..])?
@@ -123,6 +156,10 @@ impl Net {
         thread::spawn(move || {
             let _keep_alive = mdns;
             while let Ok(ev) = rx.recv() {
+                if let ServiceEvent::ServiceRemoved(_, fullname) = &ev {
+                    // Forget addresses of computers that went away, so we stop dialing them.
+                    self.found.lock().unwrap().retain(|id, _| !fullname.contains(id.as_str()));
+                }
                 if let ServiceEvent::ServiceResolved(s) = ev {
                     let (Some(id), Some(g)) = (s.get_property_val_str("id"), s.get_property_val_str("g")) else {
                         continue;
@@ -135,8 +172,16 @@ impl Net {
                         .into_iter()
                         .map(|ip| SocketAddr::new(ip.into(), s.get_port()))
                         .collect();
-                    debug!("Discovered {id} at {addrs:?}");
-                    self.found.lock().unwrap().insert(id.to_string(), addrs);
+                    debug!("Discovered {id} ({}) at {addrs:?}", s.host);
+                    let mut found = self.found.lock().unwrap();
+                    let entry = found
+                        .entry(id.to_string())
+                        .or_insert(Found { host: s.host.clone(), port: s.get_port(), addrs: Vec::new() });
+                    entry.host = s.host.clone();
+                    entry.port = s.get_port();
+                    if !addrs.is_empty() {
+                        entry.addrs = addrs;
+                    }
                 }
             }
         });
@@ -146,6 +191,7 @@ impl Net {
     /// Handshake, exchange hellos, then run the reader until the connection drops.
     fn establish(self: Arc<Self>, mut stream: TcpStream, dialer: bool) -> Res<()> {
         stream.set_nodelay(true)?;
+        prioritize(&stream);
         stream.set_read_timeout(Some(TIMEOUT))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
         let mut noise = handshake(&mut stream, &self.psk, dialer)?;
@@ -217,20 +263,89 @@ impl Net {
     /// Sends queued messages, and a ping every second so both sides notice a dead link.
     fn writer(&self, out: Receiver<Msg>) {
         loop {
-            let msg = match out.recv_timeout(Duration::from_secs(1)) {
+            let mut msg = match out.recv_timeout(Duration::from_secs(1)) {
                 Ok(m) => m,
                 Err(RecvTimeoutError::Timeout) => Msg::Ping,
                 Err(RecvTimeoutError::Disconnected) => return,
             };
             let mut active = self.active.lock().unwrap();
-            let Some(a) = active.as_mut() else { continue };
+            let Some(a) = active.as_mut() else {
+                // Nothing to talk to: drop whatever queued up.
+                while out.try_recv().is_ok() {}
+                continue;
+            };
+            // Merge a burst of pointer movement (e.g. a 1000 Hz mouse) into one message.
+            let mut next = None;
+            if let Msg::Move { dx, dy } = &mut msg {
+                while let Ok(m) = out.try_recv() {
+                    match m {
+                        Msg::Move { dx: x, dy: y } => {
+                            *dx += x;
+                            *dy += y;
+                        }
+                        other => {
+                            next = Some(other);
+                            break;
+                        }
+                    }
+                }
+            }
             let mut noise = a.noise.lock().unwrap();
-            if let Err(e) = write_msg(&mut a.stream, &mut noise, &msg) {
-                warn!("Send failed: {e}");
-                let _ = a.stream.shutdown(std::net::Shutdown::Both);
+            for m in std::iter::once(msg).chain(next) {
+                if let Err(e) = write_msg(&mut a.stream, &mut noise, &m) {
+                    warn!("Send failed: {e}");
+                    let _ = a.stream.shutdown(std::net::Shutdown::Both);
+                    break;
+                }
             }
         }
     }
+}
+
+/// Ask Wi-Fi to treat our packets as interactive (voice-class) traffic: lower latency on busy air.
+#[cfg(target_os = "macos")]
+fn prioritize(stream: &TcpStream) {
+    use std::os::fd::AsRawFd;
+    unsafe extern "C" {
+        fn setsockopt(fd: i32, level: i32, name: i32, value: *const std::ffi::c_void, len: u32) -> i32;
+    }
+    const SOL_SOCKET: i32 = 0xffff;
+    const SO_NET_SERVICE_TYPE: i32 = 0x1116;
+    const NET_SERVICE_TYPE_VO: i32 = 4;
+    let v = NET_SERVICE_TYPE_VO;
+    unsafe {
+        setsockopt(stream.as_raw_fd(), SOL_SOCKET, SO_NET_SERVICE_TYPE, (&v as *const i32).cast(), 4);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn prioritize(_stream: &TcpStream) {}
+
+/// Only talk to computers on the same local network: loopback, or an address inside the subnet
+/// of one of our own network interfaces. VPN/Tailscale (100.64.0.0/10) and the internet are refused.
+fn same_lan(ip: IpAddr) -> bool {
+    let ip = match ip {
+        IpAddr::V4(v4) => v4,
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => v4,
+            None => return v6.is_loopback(),
+        },
+    };
+    if ip.is_loopback() {
+        return true;
+    }
+    let cgnat = |a: Ipv4Addr| a.octets()[0] == 100 && (a.octets()[1] & 0xC0) == 64;
+    if cgnat(ip) {
+        return false;
+    }
+    let Ok(ifaces) = if_addrs::get_if_addrs() else { return false };
+    ifaces.iter().any(|i| match &i.addr {
+        if_addrs::IfAddr::V4(a) if !a.ip.is_loopback() && !cgnat(a.ip) => {
+            let m = u32::from(a.netmask);
+            m != 0 && u32::from(a.ip) & m == u32::from(ip) & m
+        }
+        _ => false,
+    })
 }
 
 fn handshake(stream: &mut TcpStream, psk: &[u8; 32], initiator: bool) -> Res<TransportState> {
@@ -312,6 +427,13 @@ mod tests {
         let big = Msg::Clipboard { text: "x".repeat(60_000) };
         write_msg(&mut b, &mut nb, &big).unwrap();
         assert_eq!(read_msg(&mut a, &mut na).unwrap(), big);
+    }
+
+    #[test]
+    fn only_local_network() {
+        assert!(same_lan("127.0.0.1".parse().unwrap()));
+        assert!(!same_lan("100.75.213.9".parse().unwrap())); // Tailscale
+        assert!(!same_lan("8.8.8.8".parse().unwrap()));
     }
 
     #[test]
