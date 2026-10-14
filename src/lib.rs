@@ -138,6 +138,7 @@ fn run(mut cfg: Config) {
 
     let (tx, rx) = crossbeam_channel::unbounded();
     let core = platform::install_core(core::Core::new(cfg.clone(), tx));
+    std::thread::spawn(|| platform::core().replay_loop());
     if let Err(e) = net::start(cfg.clone(), core, rx) {
         exit(&e.to_string());
     }

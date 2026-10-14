@@ -276,12 +276,13 @@ impl Net {
             };
             // Merge a burst of pointer movement (e.g. a 1000 Hz mouse) into one message.
             let mut next = None;
-            if let Msg::Move { dx, dy } = &mut msg {
+            if let Msg::Move { dx, dy, t } = &mut msg {
                 while let Ok(m) = out.try_recv() {
                     match m {
-                        Msg::Move { dx: x, dy: y } => {
+                        Msg::Move { dx: x, dy: y, t: newer } => {
                             *dx += x;
                             *dy += y;
+                            *t = newer;
                         }
                         other => {
                             next = Some(other);

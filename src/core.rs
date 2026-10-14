@@ -3,8 +3,8 @@
 //! Each computer is symmetric: it can be the *controller* (its own keyboard/mouse are being
 //! forwarded) or the *target* (it is being driven by the other computer).
 
-use std::collections::HashSet;
-use std::sync::Mutex;
+use std::collections::{HashSet, VecDeque};
+use std::sync::{Condvar, Mutex};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
@@ -24,6 +24,8 @@ const REMOTE: u8 = 1;
 const CONTROLLED: u8 = 2;
 
 const MAX_CLIPBOARD: usize = 60_000;
+/// Movement arriving later than this (beyond the usual network delay) is replayed as a glide.
+const LATE_MS: f64 = 12.0;
 /// In auto mode (no side configured) you have to push this far past the edge, so brushing
 /// against it doesn't switch computers.
 const AUTO_PUSH: f64 = 120.0;
@@ -65,11 +67,29 @@ struct State {
     last_clipboard: Option<String>,
 }
 
+/// Input from the other computer waiting to be replayed in order.
+struct Replay {
+    items: VecDeque<Msg>,
+    /// The replay thread is applying an item right now.
+    busy: bool,
+}
+
+/// Tracks the usual delay of movement messages, to tell when some arrive late.
+struct Delay {
+    min_cur: i64,
+    min_prev: i64,
+    window_start: Instant,
+}
+
 pub struct Core {
     cfg: Config,
     mode: AtomicU8,
     out: Sender<Msg>,
     st: Mutex<State>,
+    start: Instant,
+    delay: Mutex<Delay>,
+    replay: Mutex<Replay>,
+    replay_cv: Condvar,
 }
 
 impl Core {
@@ -79,6 +99,10 @@ impl Core {
             cfg,
             mode: AtomicU8::new(LOCAL),
             out,
+            start: Instant::now(),
+            delay: Mutex::new(Delay { min_cur: i64::MAX, min_prev: i64::MAX, window_start: Instant::now() }),
+            replay: Mutex::new(Replay { items: VecDeque::new(), busy: false }),
+            replay_cv: Condvar::new(),
             st: Mutex::new(State {
                 peer: None,
                 side: None,
@@ -114,7 +138,8 @@ impl Core {
                     // Movement travels in logical units (points), so each screen's scaling is respected.
                     LocalEvent::Move { dx, dy, .. } => {
                         let s = platform::pointer_scale();
-                        self.send(Msg::Move { dx: dx / s, dy: dy / s })
+                        let t = self.start.elapsed().as_micros() as u64;
+                        self.send(Msg::Move { dx: dx / s, dy: dy / s, t })
                     }
                     LocalEvent::Button { button, down } => self.send(Msg::Button { button, down }),
                     LocalEvent::Wheel { dx, dy } => self.send(Msg::Wheel { dx, dy }),
@@ -217,7 +242,73 @@ impl Core {
     }
 
     /// A message from the other computer.
+    ///
+    /// Wi-Fi sometimes holds packets back and then delivers a burst (on Macs, AWDL takes the radio
+    /// away for ~85 ms twice a second). Applied at once, a burst makes the pointer jump; instead,
+    /// late movement (and anything queued behind it, so clicks land in the right place) is
+    /// replayed by `replay_loop` at double speed. On-time input is applied immediately.
     pub fn on_remote(&self, msg: Msg) {
+        if matches!(msg, Msg::Move { .. } | Msg::Button { .. } | Msg::Wheel { .. } | Msg::Key { .. }) {
+            let late = match &msg {
+                Msg::Move { t, .. } => self.lateness_ms(*t) > LATE_MS,
+                _ => false,
+            };
+            let mut q = self.replay.lock().unwrap();
+            if late || q.busy || !q.items.is_empty() {
+                q.items.push_back(msg);
+                self.replay_cv.notify_one();
+                return;
+            }
+        }
+        self.apply(msg);
+    }
+
+    /// How late (ms) a movement sent at `t` (sender clock) is, compared to the usual delay.
+    fn lateness_ms(&self, t: u64) -> f64 {
+        let d = self.start.elapsed().as_micros() as i64 - t as i64;
+        let mut dl = self.delay.lock().unwrap();
+        // Keep the minimum over the last 3-6 s, so the baseline follows slow changes.
+        if dl.window_start.elapsed() > Duration::from_secs(3) {
+            dl.min_prev = dl.min_cur;
+            dl.min_cur = i64::MAX;
+            dl.window_start = Instant::now();
+        }
+        dl.min_cur = dl.min_cur.min(d);
+        let base = dl.min_cur.min(dl.min_prev);
+        (d - base) as f64 / 1000.0
+    }
+
+    /// Replays late input in order: movement at double its original pace, everything else at once.
+    pub fn replay_loop(&self) {
+        loop {
+            let msg = {
+                let mut q = self.replay.lock().unwrap();
+                q.busy = false;
+                while q.items.is_empty() {
+                    q = self.replay_cv.wait(q).unwrap();
+                }
+                q.busy = true;
+                q.items.pop_front().unwrap()
+            };
+            let sent_at = match &msg {
+                Msg::Move { t, .. } => Some(*t),
+                _ => None,
+            };
+            self.apply(msg);
+            if let Some(t) = sent_at {
+                let next = match self.replay.lock().unwrap().items.front() {
+                    Some(Msg::Move { t: t2, .. }) => Some(*t2),
+                    _ => None,
+                };
+                if let Some(t2) = next {
+                    let gap = Duration::from_micros(t2.saturating_sub(t) / 2).min(Duration::from_millis(8));
+                    std::thread::sleep(gap);
+                }
+            }
+        }
+    }
+
+    fn apply(&self, msg: Msg) {
         let mut st = self.st.lock().unwrap();
         let mode = self.mode.load(Ordering::SeqCst);
         match msg {
@@ -252,7 +343,7 @@ impl Core {
                 }
                 _ => {}
             },
-            Msg::Move { dx, dy } if mode == CONTROLLED => {
+            Msg::Move { dx, dy, .. } if mode == CONTROLLED => {
                 let side = st.active_side;
                 let k = self.cfg.mouse_speed * platform::pointer_scale();
                 let (dx, dy) = (dx * k, dy * k);
@@ -322,6 +413,8 @@ impl Core {
     }
 
     pub fn on_connect(&self, peer: Peer) {
+        // New peer clock: start the delay baseline over.
+        *self.delay.lock().unwrap() = Delay { min_cur: i64::MAX, min_prev: i64::MAX, window_start: Instant::now() };
         let mut st = self.st.lock().unwrap();
         st.side = self.cfg.peer_side.or(peer.side_hint.map(Side::opposite));
         info!("Connected to {} ({:?})", peer.name, peer.os);
@@ -340,6 +433,7 @@ impl Core {
     }
 
     pub fn on_disconnect(&self) {
+        self.replay.lock().unwrap().items.clear();
         let mut st = self.st.lock().unwrap();
         match self.mode.load(Ordering::SeqCst) {
             REMOTE => self.come_home(&mut st, 0.5),

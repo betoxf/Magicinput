@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Which edge of *this* computer's screens the other computer sits on.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,7 +80,8 @@ pub enum Msg {
     Enter { ratio: f64, side: Side },
     /// Target -> controller: the cursor crossed back.
     Leave { ratio: f64 },
-    Move { dx: f64, dy: f64 },
+    /// `t`: sender clock in microseconds, used to spot movement that arrived late.
+    Move { dx: f64, dy: f64, t: u64 },
     Button { button: Button, down: bool },
     Wheel { dx: f64, dy: f64 },
     /// USB HID usage (page 7) so keys survive the trip between operating systems.
