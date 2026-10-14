@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html, body { margin: 0; width: 520px; height: 560px; overflow: hidden; background: linear-gradient(135deg, #e0e7ff, #fdf2f8); }
+body.dark { background: linear-gradient(135deg, #0b1023, #200b1c); }
+.glass { position: absolute; top: 30px; left: 80px; width: 360px; border-radius: 16px; overflow: hidden; background: rgba(246,246,248,.75); box-shadow: 0 24px 60px rgba(30,20,80,.25), 0 0 0 .5px rgba(0,0,0,.12); }
+body.dark .glass { background: rgba(32,32,36,.75); }
+iframe { border: 0; width: 360px; display: block; }
+</style></head><body><div class="glass"><iframe id="f"></iframe></div>
+<script>
+const q = location.search, f = document.getElementById('f');
+if (q.includes('dark')) document.body.classList.add('dark');
+f.src = 'panel-demo.html?pairing' + (q.includes('dark') ? '&dark' : '');
+f.onload = () => setTimeout(() => { const h = f.contentDocument.getElementById('panel').offsetHeight; f.style.height = h + 'px'; }, 300);
+</script></body></html>

@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html, body { margin: 0; width: 1100px; height: 440px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #fafafa; color: #0d0d0f; }
+body.dark { background: #0f0f12; color: #f5f5f7; }
+svg { position: absolute; inset: 0; }
+.lbl { position: absolute; font-size: 15px; font-weight: 600; text-align: center; width: 260px; }
+.lbl small { display: block; font-weight: 400; font-size: 13px; opacity: .55; margin-top: 3px; }
+.note { position: absolute; left: 0; right: 0; bottom: 26px; text-align: center; font-size: 14px; opacity: .6; }
+</style></head><body>
+<svg viewBox="0 0 1100 440">
+  <defs>
+    <linearGradient id="w1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset=".55" stop-color="#7c3aed"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+    <linearGradient id="w2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0f766e"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+    <linearGradient id="w3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#374151"/></linearGradient>
+    <marker id="ah" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+  </defs>
+  <g id="ink" fill="none" stroke="currentColor">
+    <!-- MacBook -->
+    <rect x="70" y="120" width="250" height="160" rx="10" fill="url(#w1)" stroke-width="6" stroke="#1c1c1f"/>
+    <path d="M40 286 h310 l-14 14 h-282 z" fill="#c7c7cc" stroke="none"/>
+    <!-- iPad -->
+    <rect x="360" y="138" width="190" height="136" rx="14" fill="url(#w2)" stroke-width="8" stroke="#1c1c1f"/>
+    <!-- PC monitor -->
+    <rect x="640" y="96" width="330" height="200" rx="8" fill="url(#w3)" stroke-width="7" stroke="#1c1c1f"/>
+    <path d="M790 300 v32 M745 336 h90" stroke="#8e8e93" stroke-width="8" stroke-linecap="round"/>
+    <!-- pointer path -->
+    <path d="M200 214 C 300 200, 360 218, 455 208 S 600 196, 690 204 S 780 200, 808 196" stroke="currentColor" stroke-width="2.5" stroke-dasharray="7 8" marker-end="url(#ah)" opacity=".7"/>
+  </g>
+  <path transform="translate(812,182) scale(1.25)" d="M0 0 L0 20 L5 15 L8.6 22.6 L11.6 21.2 L8.2 14 L14.6 13.6 Z" fill="#fff" stroke="#0d0d0f" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>
+<div class="lbl" style="left:65px; top:318px">MacBook<small>its own keyboard &amp; trackpad</small></div>
+<div class="lbl" style="left:325px; top:318px">iPad<small>as a Sidecar display</small></div>
+<div class="lbl" style="left:675px; top:352px">Windows PC<small>keyboard &amp; mouse optional</small></div>
+<div class="note">Same network · end-to-end encrypted · works in both directions</div>
+<script>if (location.search.includes('dark')) document.body.classList.add('dark');</script>
+</body></html>

@@ -1,0 +1,438 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MagicInput</title>
+<style>
+  /* Monochrome glass: white glass with black accents, or dark glass with white accents. The
+     frosted blur itself comes from the system (vibrancy / acrylic) behind this page. */
+  :root {
+    --text: #0d0d0f; --muted: rgba(13,13,15,.55); --faint: rgba(13,13,15,.35);
+    --card: rgba(255,255,255,.55); --card-hover: rgba(255,255,255,.8); --edge: rgba(0,0,0,.07); --hi: rgba(255,255,255,.7);
+    --accent: #0d0d0f; --on-accent: #ffffff; --track: rgba(0,0,0,.12);
+    --screen-edge: rgba(0,0,0,.18); --bubble: rgba(255,255,255,.92); --bubble-text: #0d0d0f;
+    --peer-a: #2a2a2e; --peer-b: #0d0d0f; --peer-text: #fff; --sheet: rgba(250,250,252,.92);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #f5f5f7; --muted: rgba(245,245,247,.6); --faint: rgba(245,245,247,.35);
+      --card: rgba(255,255,255,.07); --card-hover: rgba(255,255,255,.12); --edge: rgba(255,255,255,.09); --hi: rgba(255,255,255,.06);
+      --accent: #f5f5f7; --on-accent: #0d0d0f; --track: rgba(255,255,255,.16);
+      --screen-edge: rgba(255,255,255,.22); --bubble: rgba(40,40,44,.92); --bubble-text: #f5f5f7;
+      --peer-a: #fafafa; --peer-b: #cfcfd4; --peer-text: #0d0d0f; --sheet: rgba(36,36,40,.94);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; color: var(--text); overflow: hidden;
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; cursor: default; -webkit-font-smoothing: antialiased; }
+  .panel { padding: 14px; opacity: 0; transform: scale(.97); transform-origin: top center;
+    transition: opacity .18s ease-out, transform .22s cubic-bezier(.2,.9,.3,1.15); }
+  [data-os=windows] .panel { transform-origin: bottom center; }
+  .panel.in { opacity: 1; transform: none; }
+
+  header { display: flex; align-items: center; gap: 11px; padding: 2px 2px 12px; }
+  header .logo { width: 34px; height: 34px; flex: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.18)); }
+  .title { flex: 1; min-width: 0; }
+  h1 { font-size: 14px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--faint); flex: none; }
+  .dot.ok { background: var(--accent); border-color: var(--accent); }
+  .dot.wait { border-color: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .2; } }
+  .power { width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; flex: none;
+    background: var(--card); color: var(--muted); box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi);
+    transition: background .15s, color .15s, transform .1s; }
+  .power:hover { background: var(--card-hover); }
+  .power:active { transform: scale(.94); }
+  .power.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+  .power svg { width: 16px; height: 16px; }
+  .round { width: 30px; height: 30px; border-radius: 50%; border: 0; display: grid; place-items: center; flex: none;
+    background: transparent; color: var(--muted); transition: background .15s, color .15s, transform .1s; }
+  .round:hover { background: var(--card); color: var(--text); }
+  .round:active { transform: scale(.92); }
+  .round.on { background: var(--card-hover); color: var(--text); }
+  .round svg { width: 15px; height: 15px; }
+
+  .panel { position: relative; }
+  .scrim { position: absolute; inset: 0; border-radius: 16px; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .sheet { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 12px; border-radius: 16px;
+    background: var(--sheet); box-shadow: 0 -6px 30px rgba(0,0,0,.18), inset 0 0 0 .5px var(--edge);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+    transform: translateY(calc(100% + 16px)); transition: transform .28s cubic-bezier(.2,.9,.3,1); }
+  .panel.pairing .scrim { opacity: 1; pointer-events: auto; }
+  .panel.pairing .sheet { transform: none; }
+  .sheethead { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 10px; }
+  .sheethead span { font-size: 13px; font-weight: 650; }
+  .x { width: 22px; height: 22px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--card); color: var(--muted); }
+  .x:hover { color: var(--text); }
+  .x svg { width: 11px; height: 11px; }
+  .sheethint { color: var(--muted); font-size: 11px; text-align: center; padding-top: 9px; }
+
+  .card { background: var(--card); border-radius: 14px; box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi); }
+  .card + .card, .card + .tiles, .tiles + .card { margin-top: 10px; }
+  .cardhead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 0; }
+  .cardhead span { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  .pill { border: 0; border-radius: 9px; padding: 2px 9px; font: 600 10.5px/1.5 inherit; font-family: inherit;
+    background: transparent; color: var(--muted); box-shadow: inset 0 0 0 .5px var(--edge); transition: background .15s, color .15s; }
+  .pill:hover { background: var(--card-hover); }
+  .pill.on { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+  .hint { color: var(--muted); font-size: 11px; padding: 0 12px 10px; text-align: center; min-height: 14px; }
+
+  #arrange { position: relative; height: 118px; margin: 2px 8px 0; touch-action: none; }
+  .scr { position: absolute; border-radius: 5px; overflow: visible; background: #8e8e93 center / cover no-repeat;
+    box-shadow: 0 0 0 .5px var(--screen-edge), 0 2px 6px rgba(0,0,0,.18); transition: left .2s, top .2s, box-shadow .15s; }
+  .scr .glass { position: absolute; inset: 0; border-radius: 5px; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.05)); }
+  .scr.main .bar { position: absolute; top: 0; left: 0; right: 0; height: 9%; min-height: 3px; border-radius: 5px 5px 0 0;
+    background: rgba(255,255,255,.55); backdrop-filter: blur(4px); }
+  .scr.movable, .peer { cursor: grab; }
+  .scr.movable:hover, .peer:hover { box-shadow: 0 0 0 1.5px var(--accent), 0 4px 12px rgba(0,0,0,.22); }
+  .peer { position: absolute; border-radius: 5px; color: var(--peer-text); font-size: 10px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 3px; overflow: visible;
+    background: linear-gradient(160deg, var(--peer-a), var(--peer-b)); box-shadow: 0 0 0 .5px var(--screen-edge), 0 4px 12px rgba(0,0,0,.25);
+    transition: left .2s, top .2s, box-shadow .15s; }
+  .peer .glyph { opacity: .85; }
+  .peer.auto { background: transparent; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--faint); }
+  .dragging { cursor: grabbing !important; transition: none !important; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(0,0,0,.3) !important; }
+  /* Name bubble on hover, like the one in Displays. */
+  .bubble { position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%) translateY(3px) scale(.96);
+    background: var(--bubble); color: var(--bubble-text); font-size: 11px; font-weight: 500; white-space: nowrap;
+    padding: 4px 9px; border-radius: 9px; display: flex; gap: 5px; align-items: center; pointer-events: none; opacity: 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18), 0 0 0 .5px var(--edge); transition: opacity .14s, transform .18s cubic-bezier(.2,.9,.3,1.2); z-index: 5; }
+  .bubble::after { content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--bubble); }
+  .bubble svg { width: 13px; height: 13px; }
+  .scr:hover .bubble, .peer:hover .bubble { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  .dragging .bubble { opacity: 0 !important; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { border: 0; border-radius: 14px; padding: 11px 6px 9px; background: var(--card); color: var(--text); font: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: inset 0 0 0 .5px var(--edge), inset 0 1px 0 var(--hi);
+    transition: background .15s, color .15s, transform .1s, box-shadow .15s; }
+  .tile:hover { background: var(--card-hover); }
+  .tile:active { transform: scale(.96); }
+  .tile svg { width: 19px; height: 19px; }
+  .tile span { font-size: 11px; font-weight: 500; }
+  .tile.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .row + .row { border-top: .5px solid var(--edge); }
+  .row svg.ic { width: 16px; height: 16px; color: var(--muted); flex: none; }
+  .row .grow { flex: 1; }
+  .val { color: var(--muted); font-variant-numeric: tabular-nums; width: 36px; text-align: right; font-size: 12px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+    background: linear-gradient(to right, var(--accent) var(--p, 50%), var(--track) var(--p, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3), 0 0 0 .5px rgba(0,0,0,.1); transition: transform .1s; }
+  input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
+
+  .code { font: 600 14px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; -webkit-user-select: text; user-select: text; }
+  .lbl { font-size: 11px; color: var(--muted); }
+  button.btn { border: 0; border-radius: 8px; padding: 5px 10px; font: 500 12px inherit; font-family: inherit; background: transparent; color: var(--text);
+    box-shadow: inset 0 0 0 .5px var(--edge); transition: background .15s, transform .1s; }
+  button.btn:hover { background: var(--card-hover); }
+  button.btn:active { transform: scale(.96); }
+  button.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+  button.btn:disabled { opacity: .35; }
+  input[type=text] { font: 600 12.5px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase;
+    border: 0; background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 9px; width: 100%; outline: none;
+    box-shadow: inset 0 0 0 .5px var(--edge); }
+  input[type=text]:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  input[type=text]::placeholder { color: var(--faint); text-transform: none; letter-spacing: 0; font: 400 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  footer { text-align: center; color: var(--faint); font-size: 10.5px; padding: 10px 0 0; }
+</style>
+</head>
+<body>
+<div class="panel" id="panel">
+  <header>
+    <svg class="logo" viewBox="96 84 832 844" aria-hidden="true">
+      <defs>
+        <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E6E9"/></linearGradient>
+        <linearGradient id="back" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D9D9DD"/><stop offset="1" stop-color="#C4C4C9"/></linearGradient>
+      </defs>
+      <rect x="132" y="88" width="784" height="784" rx="176" fill="url(#back)"/>
+      <rect x="100" y="132" width="824" height="792" rx="184" fill="url(#tile)" stroke="rgba(0,0,0,.08)" stroke-width="6"/>
+      <g transform="translate(112,150) scale(8)">
+        <rect x="30" y="24" width="44" height="33" rx="5" fill="none" stroke="#111114" stroke-width="4.2"/>
+        <rect x="51" y="45" width="34" height="27" rx="4.5" fill="#EEEEF0" stroke="#111114" stroke-width="4.2"/>
+        <path d="M27,47 L27,74 L33.6,67.6 L38.4,78 L42.6,76.1 L37.9,65.9 L46.8,65.4 Z" fill="#111114" stroke="#F1F1F3" stroke-width="2.6" stroke-linejoin="round"/>
+        <path fill="#111114" d="M21,34.4 C21.74,38.26 21.74,38.26 25.6,39 C21.74,39.74 21.74,39.74 21,43.6 C20.26,39.74 20.26,39.74 16.4,39 C20.26,38.26 20.26,38.26 21,34.4 Z M17.5,48.2 C17.87,50.13 17.87,50.13 19.8,50.5 C17.87,50.87 17.87,50.87 17.5,52.8 C17.13,50.87 17.13,50.87 15.2,50.5 C17.13,50.13 17.13,50.13 17.5,48.2 Z M49,76.9 C49.42,79.08 49.42,79.08 51.6,79.5 C49.42,79.92 49.42,79.92 49,82.1 C48.58,79.92 48.58,79.92 46.4,79.5 C48.58,79.08 48.58,79.08 49,76.9 Z"/>
+      </g>
+    </svg>
+    <div class="title">
+      <h1>MagicInput</h1>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Starting…</span></div>
+    </div>
+    <button class="round" id="pairBtn" title="Pairing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>
+    </button>
+    <button class="power" id="power" title="Start at login">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.5v8"/><path d="M6.3 6.8a7.6 7.6 0 1 0 11.4 0"/></svg>
+    </button>
+  </header>
+
+  <div class="card">
+    <div class="cardhead"><span>Displays</span><button class="pill" id="auto">Auto</button></div>
+    <div id="arrange"></div>
+    <div class="hint" id="sideHint"></div>
+  </div>
+
+  <div class="tiles">
+    <button class="tile" id="clipboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="2.5"/><path d="M9 4.5h6v2.2a.8.8 0 0 1-.8.8H9.8a.8.8 0 0 1-.8-.8z"/><path d="M9 12h6M9 15.5h4" stroke-linecap="round"/></svg>
+      <span>Clipboard</span>
+    </button>
+    <button class="tile" id="swap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 9V6.5A2.5 2.5 0 1 0 6.5 9H17.5A2.5 2.5 0 1 0 15 6.5V17.5A2.5 2.5 0 1 0 17.5 15H6.5A2.5 2.5 0 1 0 9 17.5Z"/></svg>
+      <span id="swapLabel">⌘ as Ctrl</span>
+    </button>
+    <button class="tile" id="tray">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M3.5 9h17"/><circle cx="16.5" cy="6.8" r=".6" fill="currentColor"/></svg>
+      <span id="trayLabel">Menu bar</span>
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M7 3.5v15.2l3.8-3.6 2.7 5.8 2.3-1.1-2.7-5.7 5.2-.3z"/></svg>
+      <input class="grow" type="range" id="mouse_speed" min="0.5" max="2" step="0.05"><span class="val" id="mouse_speed_v"></span>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3.5" width="10" height="17" rx="5"/><path d="M12 7.5v3" stroke-linecap="round"/></svg>
+      <input class="grow" type="range" id="scroll_speed" min="0.5" max="2" step="0.05"><span class="val" id="scroll_speed_v"></span>
+    </div>
+  </div>
+
+  <footer id="escHint"></footer>
+
+  <!-- Pairing, tucked away behind the link button. -->
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheethead"><span>Pairing</span><button class="x" id="sheetClose" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
+    <div class="card">
+      <div class="row">
+        <div class="grow"><div class="lbl">This computer's code</div><div class="code" id="code">····-····</div></div>
+        <button class="btn" id="newCode">New</button>
+      </div>
+      <div class="row">
+        <input type="text" id="pairInput" maxlength="9" placeholder="Other computer's code" spellcheck="false">
+        <button class="btn primary" id="pair" disabled>Pair</button>
+      </div>
+    </div>
+    <div class="sheethint">Use the same code on both computers.</div>
+  </div>
+</div>
+<script>
+  const send = (t, v) => window.ipc.postMessage(JSON.stringify({ t, v }));
+  const $ = id => document.getElementById(id);
+  const ICON = {
+    laptop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 18.5h19" stroke-linecap="round"/></svg>',
+    ipad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/></svg>',
+    monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12.5" rx="1.5"/><path d="M9 20h6M12 16.5V20" stroke-linecap="round"/></svg>',
+    pc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12.5" rx="1.5"/><path d="M8 20h8M12 16.5V20" stroke-linecap="round"/></svg>',
+  };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let S = null, walls = {}, ready = false;
+
+  $('power').onclick = () => send('login', !S?.login);
+  $('auto').onclick = () => send('auto');
+  for (const id of ['clipboard', 'swap', 'tray']) $(id).onclick = () => { if (S) send(id, !S[id]); };
+  const paint = el => el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+  for (const id of ['mouse_speed', 'scroll_speed']) {
+    $(id).oninput = () => { $(id + '_v').textContent = (+$(id).value).toFixed(2) + '×'; paint($(id)); };
+    $(id).onchange = () => send(id, +$(id).value);
+  }
+  $('newCode').onclick = () => send('new_code');
+  const pairing = on => { $('panel').classList.toggle('pairing', on); $('pairBtn').classList.toggle('on', on); if (on) setTimeout(() => $('pairInput').focus(), 250); };
+  $('pairBtn').onclick = () => pairing(!$('panel').classList.contains('pairing'));
+  $('sheetClose').onclick = $('scrim').onclick = () => pairing(false);
+  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  $('pairInput').oninput = () => $('pair').disabled = norm($('pairInput').value).length !== 8;
+  $('pair').onclick = () => { send('pair', $('pairInput').value); $('pairInput').value = ''; $('pair').disabled = true; pairing(false); };
+  $('pairInput').onkeydown = e => { if (e.key === 'Enter' && !$('pair').disabled) $('pair').click(); };
+  // Esc closes the pairing sheet first, then the panel.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('panel').classList.contains('pairing')) pairing(false); else send('close');
+  });
+
+  // ---- Displays, drawn to scale like System Settings: this computer's screens (with their
+  // wallpaper) and the other computer. Drag the other computer along any outer edge, or move
+  // this computer's extra displays (e.g. an iPad). Everything snaps to edges and alignments.
+  let drag = null, view = null;
+  const area = $('arrange');
+  const union = rs => { const x0 = Math.min(...rs.map(r => r.x)), y0 = Math.min(...rs.map(r => r.y));
+    return { x: x0, y: y0, w: Math.max(...rs.map(r => r.x + r.w)) - x0, h: Math.max(...rs.map(r => r.y + r.h)) - y0 }; };
+  const horiz = side => side === 'left' || side === 'right';
+
+  function besideRect(p, U, size) {
+    const along = p.length, across = horiz(p.side) ? size.w * along / size.h : size.h * along / size.w;
+    if (p.side === 'right') return { x: U.x + U.w, y: p.offset, w: across, h: along };
+    if (p.side === 'left') return { x: U.x - across, y: p.offset, w: across, h: along };
+    if (p.side === 'bottom') return { x: p.offset, y: U.y + U.h, w: along, h: across };
+    return { x: p.offset, y: U.y - across, w: along, h: across };
+  }
+
+  function placementAt(cx, cy, U, screens, size) {
+    const dx = (cx - (U.x + U.w / 2)) / U.w, dy = (cy - (U.y + U.h / 2)) / U.h;
+    const side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
+    const length = horiz(side) ? size.h : size.w;
+    const u0 = horiz(side) ? U.y : U.x, ulen = horiz(side) ? U.h : U.w;
+    const minOverlap = Math.min(length, ulen) * 0.15;
+    let offset = (horiz(side) ? cy : cx) - length / 2;
+    offset = Math.max(u0 - length + minOverlap, Math.min(u0 + ulen - minOverlap, offset));
+    const snaps = [];
+    for (const r of screens) { const a0 = horiz(side) ? r.y : r.x, alen = horiz(side) ? r.h : r.w;
+      snaps.push(a0, a0 + alen - length, a0 + alen / 2 - length / 2); }
+    const tol = ulen * 0.08;
+    for (const sp of snaps) if (Math.abs(sp - offset) < tol) { offset = sp; break; }
+    return { side, offset, length };
+  }
+
+  const kindOf = r => /ipad/i.test(r.name) ? 'ipad' : /built-in/i.test(r.name) ? 'laptop' : 'monitor';
+
+  function drawArrange() {
+    if (!S || !S.screens.length) { area.innerHTML = ''; return; }
+    const screens = S.screens.map((r, i) => drag?.kind === 'screen' && drag.i === i ? { ...r, ...drag.rect } : r);
+    const U = union(S.screens), size = S.peer_size;
+    const p = drag?.kind === 'peer' ? drag.p : (S.placement || { side: 'right', offset: U.y + U.h / 2 - size.h / 2, length: size.h });
+    const P = besideRect(p, U, size), all = union([...screens, P]);
+    if (!drag || !view) {
+      const pad = 0.1, W = area.clientWidth, H = area.clientHeight;
+      const ext = { x: all.x - all.w * pad, y: all.y - all.h * pad - all.h * 0.12, w: all.w * (1 + 2 * pad), h: all.h * (1 + 2 * pad + 0.12) };
+      const k = Math.min(W / ext.w, H / ext.h);
+      view = { k, ox: (W - ext.w * k) / 2 - ext.x * k, oy: (H - ext.h * k) / 2 - ext.y * k };
+    }
+    const px = r => `left:${r.x * view.k + view.ox}px;top:${r.y * view.k + view.oy}px;width:${r.w * view.k - 1.5}px;height:${r.h * view.k - 1.5}px`;
+    let html = screens.map((r, i) => {
+      const movable = r.id != null && !r.main && screens.length > 1;
+      const cls = ['scr', r.main ? 'main' : '', movable ? 'movable' : '', drag?.kind === 'screen' && drag.i === i ? 'dragging' : ''].join(' ');
+      const bg = walls[i] ? `;background-image:url(${walls[i]})` : '';
+      return `<div class="${cls}" data-i="${i}" style="${px(r)}${bg}"><div class="glass"></div><div class="bar"></div>` +
+        `<div class="bubble">${ICON[kindOf(r)]}${esc(r.name || 'Display')}</div></div>`;
+    }).join('');
+    const name = S.peer || (S.os === 'mac' ? 'PC' : 'Mac');
+    const pcls = ['peer', S.placement || drag?.kind === 'peer' ? '' : 'auto', drag?.kind === 'peer' ? 'dragging' : ''].join(' ');
+    html += `<div class="${pcls}" id="peerBlock" style="${px(P)}"><span class="glyph">${esc(name)}</span>` +
+      `<div class="bubble">${ICON.pc}${esc(name)}${S.placement ? '' : ' · drag to pin'}</div></div>`;
+    area.innerHTML = html;
+  }
+
+  const toWorld = e => { const a = area.getBoundingClientRect();
+    return { x: (e.clientX - a.left - view.ox) / view.k, y: (e.clientY - a.top - view.oy) / view.k }; };
+
+  area.onpointerdown = e => {
+    if (!S || !view) return;
+    const el = e.target.closest('.peer, .scr.movable');
+    if (!el) return;
+    e.preventDefault();
+    area.setPointerCapture(e.pointerId);
+    const w = toWorld(e);
+    if (el.id === 'peerBlock') {
+      const U = union(S.screens);
+      const p = S.placement || { side: 'right', offset: U.y + U.h / 2 - S.peer_size.h / 2, length: S.peer_size.h };
+      const P = besideRect(p, U, S.peer_size);
+      drag = { kind: 'peer', p, gx: w.x - (P.x + P.w / 2), gy: w.y - (P.y + P.h / 2) };
+    } else {
+      const i = +el.dataset.i, r = S.screens[i];
+      drag = { kind: 'screen', i, rect: { x: r.x, y: r.y }, gx: w.x - (r.x + r.w / 2), gy: w.y - (r.y + r.h / 2) };
+    }
+    drawArrange();
+  };
+  area.onpointermove = e => {
+    if (!drag) return;
+    const w = toWorld(e), cx = w.x - drag.gx, cy = w.y - drag.gy;
+    if (drag.kind === 'peer') drag.p = placementAt(cx, cy, union(S.screens), S.screens, S.peer_size);
+    else { const r = S.screens[drag.i]; drag.rect = { x: cx - r.w / 2, y: cy - r.h / 2 }; }
+    drawArrange();
+  };
+  area.onpointerup = e => {
+    if (!drag) return;
+    const d = drag, w = toWorld(e), cx = w.x - d.gx, cy = w.y - d.gy;
+    drag = null; view = null;
+    if (d.kind === 'peer') {
+      S.placement = d.p;
+      send('arrange', { side: d.p.side, offset: d.p.offset });
+    } else {
+      const r = S.screens[d.i], others = S.screens.filter((_, j) => j !== d.i);
+      const p = placementAt(cx, cy, union(others), others, { w: r.w, h: r.h });
+      const R = besideRect(p, union(others), { w: r.w, h: r.h });
+      S.screens = S.screens.map((s, j) => j === d.i ? { ...s, x: R.x, y: R.y } : s);
+      send('move_display', { id: r.id, x: R.x, y: R.y });
+    }
+    drawArrange();
+  };
+
+  // Shown again (kept hidden in between): refresh and replay the entrance.
+  window.reopen = s => {
+    $('panel').classList.remove('in');
+    pairing(false);
+    render(s);
+    void $('panel').offsetHeight;
+    setTimeout(() => $('panel').classList.add('in'), 30);
+  };
+
+  window.setWallpapers = w => { walls = w || {}; if (!drag) drawArrange(); };
+
+  window.render = s => {
+    const mac = s.os === 'mac';
+    document.documentElement.dataset.os = s.os;
+    let dot = 'dot', text;
+    if (!s.running) text = s.login ? 'Starting…' : 'Off';
+    else if (!s.peer) { dot += ' wait'; text = 'Looking for your other computer…'; }
+    else { dot += ' ok'; text = s.controlling ? 'Controlling ' + s.peer : s.controlled ? s.peer + ' is in control' : 'Connected to ' + s.peer; }
+    $('dot').className = dot; $('status').textContent = text;
+    $('power').classList.toggle('on', s.login);
+    $('power').title = s.login ? 'On, starts at login' : 'Off';
+
+    if (!drag) { S = s; view = null; drawArrange(); }
+    $('auto').classList.toggle('on', !s.placement);
+    $('sideHint').textContent = s.placement ? 'The pointer crosses where the screens touch' : 'Push firmly past the left or right edge';
+    for (const id of ['mouse_speed', 'scroll_speed']) {
+      if (document.activeElement !== $(id)) { $(id).value = s[id]; $(id + '_v').textContent = (+s[id]).toFixed(2) + '×'; paint($(id)); }
+    }
+    $('swapLabel').textContent = mac ? '⌘ as Ctrl' : 'Ctrl as ⌘';
+    $('trayLabel').textContent = mac ? 'Menu bar' : 'Tray icon';
+    for (const id of ['clipboard', 'swap', 'tray']) $(id).classList.toggle('on', !!s[id]);
+    $('code').textContent = s.code;
+    $('escHint').textContent = (mac ? '⌃⌥Esc' : 'Ctrl+Alt+Esc') + ' always brings the pointer home · v' + s.version;
+
+    // First paint done: tell the app our height so it can attach and show the panel, then fade in.
+    if (!ready) {
+      ready = true;
+      // Measure once fonts are in (they change the height). Timers, not animation frames: the
+      // window is still hidden, so frames don't run yet.
+      document.fonts.ready.then(() => setTimeout(() => {
+        send('ready', $('panel').offsetHeight);
+        setTimeout(() => $('panel').classList.add('in'), 40);
+      }, 0));
+    }
+  };
+</script>
+<style>html.dark {
+      --text: #f5f5f7; --muted: rgba(245,245,247,.6); --faint: rgba(245,245,247,.35);
+      --card: rgba(255,255,255,.07); --card-hover: rgba(255,255,255,.12); --edge: rgba(255,255,255,.09); --hi: rgba(255,255,255,.06);
+      --accent: #f5f5f7; --on-accent: #0d0d0f; --track: rgba(255,255,255,.16);
+      --screen-edge: rgba(255,255,255,.22); --bubble: rgba(40,40,44,.92); --bubble-text: #f5f5f7;
+      --peer-a: #fafafa; --peer-b: #cfcfd4; --peer-text: #0d0d0f; --sheet: rgba(36,36,40,.94);
+    }
+* { transition: none !important; animation: none !important; } body { background: transparent; }</style>
+<script>
+window.ipc = { postMessage() {} };
+const params = new URLSearchParams(location.search);
+if (params.has('dark')) document.documentElement.classList.add('dark');
+window.addEventListener('load', () => {
+  render({ os: 'mac', version: '0.1.0', name: 'MacBook Pro', code: 'K7QP-3MZD', swap: true, clipboard: true, tray: true,
+    mouse_speed: 1.15, scroll_speed: 0.9, login: true, running: true, peer: 'Windows PC', peer_os: 'Windows',
+    controlling: params.has('controlling'), controlled: false,
+    screens: [{ x: 0, y: 0, w: 1512, h: 982, name: 'Built-in', id: 1, main: true }, { x: 1512, y: 40, w: 1180, h: 820, name: 'iPad', id: 2, main: false }],
+    peer_size: { w: 1707, h: 960 }, placement: { side: 'right', offset: 0, length: 960 } });
+  setWallpapers({ 0: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMxZTNhOGEnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzdjM2FlZCcvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2Y0NzJiNicvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=", 1: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMwZjc2NmUnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzI1NjNlYicvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2E3OGJmYScvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=" });
+  document.getElementById('panel').classList.add('in');
+  if (params.has('pairing')) document.getElementById('panel').classList.add('pairing');
+});
+</script></body>
+</html>

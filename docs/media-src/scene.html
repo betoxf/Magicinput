@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; width: 1100px; height: 520px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  body { background: radial-gradient(1200px 700px at 15% 10%, #c7d2fe 0%, transparent 60%), radial-gradient(900px 600px at 95% 80%, #fbcfe8 0%, transparent 60%), linear-gradient(135deg, #e0e7ff, #f5f3ff 50%, #fdf2f8); position: relative; }
+  body.dark { background: radial-gradient(1200px 700px at 15% 10%, #312e81 0%, transparent 60%), radial-gradient(900px 600px at 95% 80%, #831843 0%, transparent 60%), linear-gradient(135deg, #0b1023, #1a1033 50%, #200b1c); }
+  .bar { position: absolute; top: 0; left: 0; right: 0; height: 30px; display: flex; align-items: center; justify-content: flex-end; gap: 22px; padding: 0 18px;
+    background: rgba(255,255,255,.45); backdrop-filter: blur(20px); color: #111; font-size: 13px; font-weight: 500; }
+  body.dark .bar { background: rgba(20,20,24,.45); color: #f5f5f7; }
+  .bar .ic { width: 25px; height: 18px; display: grid; place-items: center; border-radius: 6px; }
+  .bar .ic.on { background: rgba(0,0,0,.12); width: 34px; height: 22px; }
+  body.dark .bar .ic.on { background: rgba(255,255,255,.18); }
+  .bar svg { width: 25px; height: 18px; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; border: 1.6px solid currentColor; opacity: .75; }
+  .glass { position: absolute; top: 36px; right: 120px; width: 360px; height: 560px; border-radius: 16px; overflow: hidden;
+    background: rgba(246,246,248,.72); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 30px 80px rgba(30,20,80,.28), 0 0 0 .5px rgba(0,0,0,.12); }
+  body.dark .glass { background: rgba(32,32,36,.72); box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.12); }
+  iframe { border: 0; width: 360px; height: 560px; background: transparent; }
+  .caption { position: absolute; left: 70px; top: 130px; width: 520px; color: #111; }
+  body.dark .caption { color: #f5f5f7; }
+  .caption h2 { font-size: 46px; letter-spacing: -.03em; line-height: 1.05; margin: 0 0 16px; font-weight: 750; }
+  .caption p { font-size: 19px; line-height: 1.45; margin: 0; opacity: .7; }
+</style></head><body>
+<div class="bar"><span class="dot"></span><span class="dot" style="border-radius:50%"></span><span class="ic on"><svg xmlns="http://www.w3.org/2000/svg" viewBox="12 18 80 64">  <defs>   <mask id="cutFront" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="#fff"/><rect x="51" y="45" width="34" height="27" rx="4.5" fill="currentColor"/></mask>   <mask id="cutArrow" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="#fff"/><path d="M27,47 L27,74 L33.6,67.6 L38.4,78 L42.6,76.1 L37.9,65.9 L46.8,65.4 Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></mask>  </defs>  <g mask="url(#cutArrow)">   <rect x="30" y="24" width="44" height="33" rx="5" fill="none" stroke="currentColor" stroke-width="5.5" mask="url(#cutFront)"/>   <rect x="51" y="45" width="34" height="27" rx="4.5" fill="none" stroke="currentColor" stroke-width="5.5"/>  </g>  <path d="M27,47 L27,74 L33.6,67.6 L38.4,78 L42.6,76.1 L37.9,65.9 L46.8,65.4 Z" fill="currentColor"/>  <path d="M21,34.4 C21.736,38.264 21.736,38.264 25.6,39 C21.736,39.736 21.736,39.736 21,43.6 C20.264,39.736 20.264,39.736 16.4,39 C20.264,38.264 20.264,38.264 21,34.4 Z M17.5,48.2 C17.868,50.132 17.868,50.132 19.8,50.5 C17.868,50.868 17.868,50.868 17.5,52.8 C17.132,50.868 17.132,50.868 15.2,50.5 C17.132,50.132 17.132,50.132 17.5,48.2 Z" fill="currentColor"/> </svg> </span><span>Wed 9:41</span></div>
+<div class="caption"><h2>One keyboard.<br>One mouse.<br>Mac and PC.</h2><p>Push the pointer off the edge of your Mac's screen and keep going on your PC. Type, click, copy and paste, like it was one computer.</p></div>
+<div class="glass"><iframe id="f" src="panel-demo.html"></iframe></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.has('dark')) document.body.classList.add('dark');
+  const f = document.getElementById('f');
+  f.src = 'panel-demo.html' + location.search;
+  // Fit the glass to the panel.
+  f.onload = () => setTimeout(() => {
+    const h = f.contentDocument.getElementById('panel').offsetHeight;
+    f.style.height = h + 'px'; document.querySelector('.glass').style.height = h + 'px';
+  }, 300);
+</script>
+</body></html>

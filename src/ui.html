@@ -310,7 +310,7 @@
     let html = screens.map((r, i) => {
       const movable = r.id != null && !r.main && screens.length > 1;
       const cls = ['scr', r.main ? 'main' : '', movable ? 'movable' : '', drag?.kind === 'screen' && drag.i === i ? 'dragging' : ''].join(' ');
-      const bg = walls[i] ? `;background-image:url(${walls[i]})` : '';
+      const bg = walls[i] ? `;background-image:url('${walls[i]}')` : '';
       return `<div class="${cls}" data-i="${i}" style="${px(r)}${bg}"><div class="glass"></div><div class="bar"></div>` +
         `<div class="bubble">${ICON[kindOf(r)]}${esc(r.name || 'Display')}</div></div>`;
     }).join('');

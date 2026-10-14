@@ -1,83 +1,201 @@
-# magicinput
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/magicinput-logo-dark.png">
+    <img src="assets/brand/magicinput-logo.png" alt="MagicInput" width="760">
+  </picture>
 
-Use one keyboard and mouse (or trackpad) across your Mac and your PC. Push the pointer off the
-edge of one screen and it continues on the other, and whatever you type goes there too. It works
-in both directions, so whichever computer's keyboard and mouse you have in front of you drives both.
+  <p><strong>Use one keyboard and mouse across your Mac and your Windows PC.</strong></p>
+  <p>Push the pointer off the edge of one screen and keep going on the other. Type, click, scroll, copy and paste, as if it were one computer. Like Universal Control, for PCs.</p>
 
-- Works Mac ⇄ Windows, either side in control
-- Finds the other computer on your network automatically
-- Copied text follows you to the other computer
-- Cmd+C on a Mac keyboard copies on Windows (Ctrl ⇄ Cmd swap, can be turned off)
-- Encrypted connection, locked to computers that share your pairing code
-- **Ctrl+Alt+Esc** (Control+Option+Esc on a Mac) always brings the pointer home
+  <p>
+    <a href="https://github.com/betoxf/magicinput/actions/workflows/ci.yml"><img src="https://github.com/betoxf/magicinput/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build"></a>
+    <a href="https://github.com/betoxf/magicinput/releases/latest"><img src="https://img.shields.io/github/v/release/betoxf/magicinput?display_name=tag&sort=semver" alt="Latest release"></a>
+    <img src="https://img.shields.io/badge/macOS-13%2B-111827" alt="macOS 13 or newer">
+    <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-111827" alt="Windows 10 or 11">
+    <img src="https://img.shields.io/badge/Rust-2024-B7410E" alt="Rust">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2563EB" alt="MIT license"></a>
+  </p>
 
-## Setup
+  <p>
+    <a href="#installation">Install</a> ·
+    <a href="#quick-start">Quick start</a> ·
+    <a href="#how-it-works">How it works</a> ·
+    <a href="CHANGELOG.md">Changelog</a> ·
+    <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+    <a href="CONTRIBUTING.md">Contributing</a> ·
+    <a href="SECURITY.md">Security</a>
+  </p>
+</div>
 
-**Mac**: build the app with `./scripts/bundle-mac.sh`, then run
-`dist/MagicInput.app/Contents/MacOS/magicinput install`. The first time, macOS asks for
-permission: turn on **MagicInput** under System Settings → Privacy & Security → **Accessibility**
-and **Input Monitoring**. It starts working as soon as both are on, and from then on it starts by
-itself every time you log in.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/hero-dark.png">
+    <img src="images/hero-light.png" alt="The MagicInput panel dropping from the macOS menu bar, showing a MacBook, an iPad and a Windows PC arranged side by side" width="880">
+  </picture>
+</p>
 
-**Windows**: put `magicinput.exe`, `magicinputw.exe`, `magicinput-app.exe` and `WebView2Loader.dll`
-in the same folder and run, from a
-terminal opened as administrator:
+## Why MagicInput
 
+Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. MagicInput lets one set of hands drive both, without a hardware switch or a cloud account.
+
+| Capability | What it gives you |
+| --- | --- |
+| Works both ways | Drive the PC from the Mac, or the Mac from the PC's keyboard and mouse. Whichever you're touching is in charge. |
+| Just push past the edge | **Auto** mode needs no setup: push firmly past the left or right edge. Or arrange the screens exactly. |
+| Arrange like System Settings | Drag the PC next to your displays, iPad (Sidecar) included, and move the iPad itself. The pointer crosses only where the screens touch, at the matching height. |
+| Copy and paste across | Copied text follows the pointer to the other computer. |
+| Mac shortcuts on the PC | ⌘C copies on Windows (Ctrl and ⌘ swap automatically; can be turned off). |
+| Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
+| Smooth on Wi-Fi | Late pointer updates are replayed as a quick glide instead of a jump. |
+| Out of the way | Starts at login and runs at about 0.1% CPU. The settings panel only exists while it's open; the menu bar icon is optional. |
+
+## Installation
+
+### macOS
+
+**Homebrew (recommended)**
+
+```bash
+brew install --cask betoxf/tap/magicinput
 ```
-magicinput.exe pair K7QP-3MZD     # the code the Mac shows (first line of its log)
-magicinput.exe install
-```
 
-`install` copies them to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every
-login (no window, with admin rights so it also works over admin apps), and allows it through the
-firewall on private networks.
+**Or download** `MagicInput-macOS.zip` from the [latest release](https://github.com/betoxf/magicinput/releases/latest), unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
 
-**Use it.** Open **MagicInput** (Applications / Spotlight on the Mac, Start menu on Windows) for
-the settings window. By default nothing needs setting up: push the pointer firmly past the left or
-right edge of the screen and it jumps to the other computer, then comes back through the same edge.
+### Windows
 
-For an exact fit, drag the other computer's screen in **Arrangement** to where it really is, next to
-your own displays (an iPad used as a Sidecar display shows up there too, wherever macOS has it).
-The pointer then crosses only where the screens touch, at the matching height, with no firm push
-needed. Arranging on either computer updates the other one. **Auto** goes back to the default.
+Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
-The window is its own small process: it exists only while open, unless you turn on the menu bar /
-notification area icon.
+### Requirements
 
-It only ever talks to computers on the same local network (same subnet): VPNs such as Tailscale
-and the internet are refused.
+- A Mac with macOS 13 Ventura or newer, and a PC with Windows 10 or 11 (64-bit)
+- Both on the same local network (Wi-Fi or Ethernet)
 
-## Commands
+## Quick start
+
+1. **Install it on both computers** and open it once on each.
+2. **On the Mac, allow access.** macOS asks for **Accessibility** and **Input Monitoring** for MagicInput (System Settings → Privacy & Security). It starts working as soon as both are on.
+3. **Pair them.** In the panel, click the link icon to see this computer's code, and type it into **Other computer's code** on the other computer. They find each other automatically.
+4. **Move across.** Push the pointer firmly past the left or right edge of your screen. To make it exact, drag the other computer to where it really sits in **Displays**.
+
+**Control+Option+Esc** on the Mac (**Ctrl+Alt+Esc** on the PC) always brings the pointer home.
+
+<p align="center">
+  <img src="images/pairing.png" alt="The pairing sheet in the MagicInput panel" width="420">
+</p>
+
+## Using it
+
+| Control | What it does |
+| --- | --- |
+| Menu bar / tray icon | Opens the panel (click away or press Esc to close). The icon is optional: open MagicInput from Spotlight or the Start menu instead. |
+| Displays | Your screens with their wallpapers, and the other computer. Drag the other computer along any edge; drag an iPad or external display to move it. **Auto** goes back to "push past the left or right edge". |
+| Clipboard | Share copied text between the computers. |
+| ⌘ as Ctrl | Swap Ctrl and ⌘ between Mac and Windows so shortcuts feel native. |
+| Menu bar | Show or hide the icon. |
+| Sliders | Pointer and scroll speed for input arriving from the other computer. |
+| Power button | Start MagicInput at login (on) or stop it (off). |
+| Link icon | Pairing: this computer's code, a new code, or the other computer's code. |
+
+## How it works
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/how-it-works-dark.png">
+    <img src="images/how-it-works.png" alt="A MacBook, an iPad and a Windows PC side by side, with the pointer travelling from the MacBook across the iPad to the PC" width="880">
+  </picture>
+</p>
+
+Each computer runs the same small background service. When the pointer reaches the edge that leads to the other computer, the service hides and freezes the local pointer and forwards your keyboard, mouse and scroll input over the network; the other computer replays it as if it came from its own devices. Crossing back hands control home again.
+
+- **Discovery:** computers advertise themselves on the local network (Bonjour/mDNS) and only talk to ones using the same pairing code.
+- **Encryption:** every connection uses the Noise protocol (X25519, ChaCha20-Poly1305) with a key derived from the pairing code. A wrong code can't connect, and the code itself is never sent.
+- **Local only:** connections from outside your own subnet (internet, VPNs, Tailscale) are refused.
+- **Keys:** keystrokes travel as layout-independent USB key codes, so each computer applies its own keyboard layout.
+- **Smoothness:** each pointer update is timestamped; updates that Wi-Fi delivers late are replayed as a short glide.
+
+See [Architecture](docs/ARCHITECTURE.md) for the details.
+
+## Tips
+
+- **Choppy pointer over Wi-Fi?** macOS uses a side channel (AWDL, for AirDrop, Sidecar and Universal Control) that pauses Wi-Fi for ~85 ms twice a second when your router is on a different 5 GHz channel. Setting the router's 5 GHz channel to **149** removes those pauses.
+- **Can't click an admin window on the PC?** Windows blocks input into elevated apps unless the sender is elevated too; the installer's admin prompt takes care of this.
+- **Discovery blocked on your network?** Point one computer at the other: `magicinput peer 192.168.1.20`.
+
+## Privacy and security
+
+- Input, clipboard text and settings travel only between your two computers, encrypted.
+- MagicInput has no servers, no account and no telemetry.
+- Nothing is accepted from outside your local network.
+- The macOS permissions (Accessibility, Input Monitoring) are what any keyboard/mouse sharing tool needs to see and send input.
+
+Report suspected vulnerabilities privately as described in the [security policy](SECURITY.md).
+
+## Command line
+
+The apps are all you need, but everything is scriptable. On a Mac the command is `/Applications/MagicInput.app/Contents/MacOS/magicinput`; on Windows, `magicinput.exe`.
 
 | Command | What it does |
 | --- | --- |
-| `magicinput` | Open the settings window |
-| `magicinput run` | Run the background service (started at login) |
+| `magicinput` | Open the settings panel |
 | `magicinput pair [CODE]` | Make a new pairing code, or use the other computer's |
-| `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer's screen is (auto by default) |
-| `magicinput peer 192.168.1.20` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
-| `magicinput config` | Show settings and the config file path |
+| `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer is (auto by default) |
+| `magicinput peer <address>` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput install` / `uninstall` | Start (or stop starting) at login |
+| `magicinput config` | Show settings and where they're stored |
+| `magicinput run` | Run the background service in the foreground (for debugging) |
 
-Settings live in `config.toml` (`magicinput config` prints where): `mouse_speed`,
-`scroll_speed`, `swap_ctrl_cmd`, `clipboard`, `port` (default 24842).
+## Build from source
 
-## Building
+You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
 
+```bash
+git clone https://github.com/betoxf/magicinput.git
+cd magicinput
+cargo test
+./scripts/bundle-mac.sh          # dist/MagicInput.app (UNIVERSAL=1 for Intel + Apple silicon)
+./scripts/package-windows.sh     # dist/windows/
 ```
-cargo build --release                                   # this computer
-cargo build --release --target x86_64-pc-windows-gnu    # Windows .exe from a Mac (brew install mingw-w64)
-./scripts/bundle-mac.sh                                 # signed MagicInput.app
+
+## Repository map
+
+```text
+src/
+  core.rs          switching state machine (edges, crossing, glide, layout sync)
+  net.rs           encrypted connection, discovery, local-network check
+  geom.rs          screen geometry and arrangement math
+  keymap.rs        macOS / USB HID / Windows key translation
+  platform/        input capture and injection (macOS event tap, Windows hooks)
+  ui.rs, ui.html   settings panel and menu bar / tray icon
+  service.rs       start at login (LaunchAgent / scheduled task)
+assets/            icons and brand masters
+images/            README images (sources in docs/media-src)
+scripts/           bundle, package and release scripts
+Casks/             Homebrew cask
+docs/              architecture, releasing, release notes
 ```
 
-## Footprint
+## Project documentation
 
-Idle it uses about 0.1% CPU and 12–20 MB of memory. Bursts of pointer movement are merged
-before sending, and on a Mac its traffic is marked as interactive so Wi-Fi gives it priority.
+| Document | Purpose |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Processes, protocol, security model and files. |
+| [Contributing](CONTRIBUTING.md) | Local setup, change standards and validation. |
+| [Releasing](docs/RELEASING.md) | Versioning, notarization, release and Homebrew checklist. |
+| [Security](SECURITY.md) | Supported versions and private reporting. |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community expectations. |
 
-## Known limits
+## Contributing
 
-- Over Wi-Fi, AirDrop/Sidecar/iPad mirroring (AWDL) make the Mac's Wi-Fi pause briefly now and
-  then, which shows up as occasional pointer hiccups. Wired or the same Wi-Fi band helps.
-- Text only for the clipboard (no files or images yet).
-- Two computers at a time.
+Issues and focused pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and use the issue forms.
+
+## Acknowledgements
+
+- [Synergy](https://symless.com/synergy), [Barrier](https://github.com/debauchee/barrier), [Input Leap](https://github.com/input-leap/input-leap) and [Deskflow](https://github.com/deskflow/deskflow), which proved software KVMs work
+- Apple's Universal Control, for showing how effortless it should feel
+- [snow](https://github.com/mcginty/snow), [tao and wry](https://github.com/tauri-apps), [mdns-sd](https://github.com/keepsimple1/mdns-sd) and the other crates this builds on
+
+MagicInput is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
+
+## License
+
+MagicInput is available under the [MIT License](LICENSE).

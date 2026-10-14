@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible problem with MagicInput.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Remove pairing codes, personal screenshots and anything private from every field and attachment.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I am using the latest MagicInput release on both computers.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: MagicInput version
+      placeholder: "For example: 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: systems
+    attributes:
+      label: macOS and Windows versions
+      placeholder: "For example: macOS 15.5 and Windows 11 24H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: How are the computers connected?
+      options: [Both wired, One on Wi-Fi, Both on Wi-Fi, Not sure]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The end of magicinput.log (macOS ~/Library/Application Support/magicinput, Windows %APPDATA%\magicinput\config). Remove anything private.
+      render: text
