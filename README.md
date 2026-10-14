@@ -65,6 +65,9 @@ brew install --cask betoxf/tap/magicinput
 
 Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
+> [!NOTE]
+> The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the release.
+
 ### Requirements
 
 - A Mac with macOS 13 Ventura or newer, and a PC with Windows 10 or 11 (64-bit)
