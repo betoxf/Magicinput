@@ -54,6 +54,11 @@ pub fn publish_loop(core: &crate::core::Core) {
     }
 }
 
+/// The service is stopping: readers should see it as not running right away.
+pub fn clear() {
+    let _ = std::fs::remove_file(path());
+}
+
 /// Tell readers the service is up but still waiting for macOS permissions.
 #[allow(dead_code)]
 pub fn write_waiting() {
@@ -66,7 +71,8 @@ pub fn write_waiting() {
 /// The current status, or `None` if the service isn't running.
 pub fn read() -> Option<Status> {
     let s: Status = toml::from_str(&std::fs::read_to_string(path()).ok()?).ok()?;
-    (now().saturating_sub(s.updated) < 30).then_some(s)
+    // The service rewrites the file at least every 10 s.
+    (now().saturating_sub(s.updated) < 15).then_some(s)
 }
 
 /// `magicinput status`: where this computer stands and what to do next, for people and for AI

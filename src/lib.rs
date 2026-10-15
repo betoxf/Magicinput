@@ -165,6 +165,7 @@ fn run(mut cfg: Config) {
     }
     let _ = ctrlc::set_handler(|| {
         platform::cleanup();
+        status::clear();
         std::process::exit(0);
     });
 

@@ -2,6 +2,13 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- `magicinput install` on a Mac no longer fails with "Bootstrap failed: 5" when MagicInput is already running (it waits for the old copy to stop).
+- `magicinput status` reports a stopped service as not running right away, instead of up to 30 seconds later.
+
 ## [0.1.1] - 2026-10-14
 
 ### Added

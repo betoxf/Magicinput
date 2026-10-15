@@ -52,7 +52,17 @@ pub fn install() -> Result<String, String> {
     std::fs::write(&path, plist).map_err(|e| e.to_string())?;
     let domain = gui_domain();
     let _ = run(Command::new("launchctl").args(["bootout", &format!("{domain}/{LABEL}")]));
-    run(Command::new("launchctl").args(["bootstrap", &domain]).arg(&path))?;
+    // `bootout` returns before a running copy has fully stopped, and starting again too early
+    // fails ("Bootstrap failed: 5"), so retry for a few seconds.
+    let mut result = Err(String::new());
+    for _ in 0..20 {
+        result = run(Command::new("launchctl").args(["bootstrap", &domain]).arg(&path));
+        if result.is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    result?;
     Ok(format!("Installed: magicinput now starts when you log in ({exe})."))
 }
 
