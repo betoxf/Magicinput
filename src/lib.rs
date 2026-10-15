@@ -45,6 +45,12 @@ enum Cmd {
     Peer { addr: String },
     /// Show settings and where they are stored
     Config,
+    /// Where this computer stands (installed, running, code, connection, computers nearby) and what to do next
+    Status {
+        /// Machine-readable output, for scripts and AI assistants
+        #[arg(long)]
+        json: bool,
+    },
     /// Start magicinput automatically when you log in (and start it now)
     Install,
     /// Stop starting magicinput at login
@@ -102,6 +108,7 @@ pub fn main_with(settings: fn(bool)) {
             println!("{}\n", Config::path().display());
             print!("{}", toml::to_string_pretty(&cfg).unwrap());
         }
+        Cmd::Status { json } => status::report(&mut cfg, json),
         Cmd::Install => match service::install() {
             Ok(m) => println!("{m}"),
             Err(e) => exit(&e),

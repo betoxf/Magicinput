@@ -4,6 +4,12 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ## [0.1.1] - 2026-10-14
 
+### Added
+
+- `magicinput status` (and `--json`): whether MagicInput is installed and running, this computer's pairing code, the connection, other computers running MagicInput nearby (and whether they use the same code), and the next step. On a Mac it also reports when it is waiting for permissions.
+- A setup runbook for AI assistants ([docs/AI_SETUP.md](docs/AI_SETUP.md)), with `AGENTS.md` and `llms.txt` pointing to it, and a copy-paste prompt in the README.
+- With Homebrew, `magicinput` is available as a command in the terminal.
+
 ### Fixed
 
 - Using the controlled computer's own mouse or keyboard now reclaims control, so its pointer can cross back to the other computer. A deliberate movement (more than 24 points within half a second), click, or key press brings control home; small accidental mouse movements do not.

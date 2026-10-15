@@ -137,7 +137,7 @@ impl Net {
         let group = cfg.group();
         let instance = format!("{}-{}", cfg.name, cfg.id);
         let host = format!("magicinput-{}.local.", cfg.id);
-        let props = [("id", cfg.id.as_str()), ("g", group.as_str())];
+        let props = [("id", cfg.id.as_str()), ("g", group.as_str()), ("n", cfg.name.as_str())];
         let info = ServiceInfo::new(SERVICE, &instance, &host, "", cfg.port, &props[..])?.enable_addr_auto();
         *self.registered.lock().unwrap() = Some(info.get_fullname().to_string());
         mdns.register(info)?;
@@ -344,6 +344,45 @@ impl Net {
             }
         }
     }
+}
+
+/// Another computer running MagicInput on this network.
+pub struct Nearby {
+    pub name: String,
+    pub address: Option<String>,
+    /// Uses the same pairing code as this computer.
+    pub same_code: bool,
+}
+
+/// Look for other computers running MagicInput on the local network (for `magicinput status`).
+pub fn discover(cfg: &Config, wait: Duration) -> Vec<Nearby> {
+    let Ok(mdns) = ServiceDaemon::new() else { return Vec::new() };
+    let Ok(rx) = mdns.browse(SERVICE) else { return Vec::new() };
+    let group = cfg.group();
+    let deadline = std::time::Instant::now() + wait;
+    let mut found: HashMap<String, Nearby> = HashMap::new();
+    while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
+        match rx.recv_timeout(left) {
+            Ok(ServiceEvent::ServiceResolved(s)) => {
+                let Some(id) = s.get_property_val_str("id") else { continue };
+                if id == cfg.id {
+                    continue;
+                }
+                // Older versions don't advertise the name; it's also the start of the instance name.
+                let name = s.get_property_val_str("n").map(str::to_string).unwrap_or_else(|| {
+                    let instance = s.fullname.split("._magicinput").next().unwrap_or(&s.fullname);
+                    instance.strip_suffix(&format!("-{id}")).unwrap_or(instance).to_string()
+                });
+                let address = s.get_addresses_v4().into_iter().next().map(|ip| ip.to_string());
+                let same_code = s.get_property_val_str("g") == Some(group.as_str());
+                found.insert(id.to_string(), Nearby { name, address, same_code });
+            }
+            Ok(_) => {}
+            Err(_) => break,
+        }
+    }
+    let _ = mdns.shutdown();
+    found.into_values().collect()
 }
 
 /// Ask Wi-Fi to treat our packets as interactive (voice-class) traffic: lower latency on busy air.

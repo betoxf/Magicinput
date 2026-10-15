@@ -12,6 +12,7 @@ cask "magicinput" do
   depends_on macos: :ventura
 
   app "MagicInput.app"
+  binary "#{appdir}/MagicInput.app/Contents/MacOS/magicinput"
 
   uninstall launchctl: "io.github.magicinput",
             quit:      "io.github.magicinput"

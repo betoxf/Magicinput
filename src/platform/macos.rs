@@ -150,6 +150,7 @@ pub fn init() -> Result<(), String> {
             log::warn!("{msg}");
             // Keep waiting instead of exiting, so it just starts working once allowed.
             while !granted() {
+                crate::status::write_waiting();
                 std::thread::sleep(std::time::Duration::from_secs(2));
             }
             log::info!("Permission granted");

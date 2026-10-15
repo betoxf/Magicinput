@@ -19,6 +19,7 @@
   <p>
     <a href="#installation">Install</a> ·
     <a href="#quick-start">Quick start</a> ·
+    <a href="#set-it-up-with-an-ai-assistant">Set up with AI</a> ·
     <a href="#how-it-works">How it works</a> ·
     <a href="CHANGELOG.md">Changelog</a> ·
     <a href="docs/ARCHITECTURE.md">Architecture</a> ·
@@ -90,6 +91,18 @@ An iPad participates as a display connected to your Mac through Sidecar; MagicIn
   <img src="images/pairing.png" alt="The pairing sheet in the MagicInput panel" width="420">
 </p>
 
+## Set it up with an AI assistant
+
+Using Claude, ChatGPT, Codex, Cursor or another assistant that can run commands? Paste this on each computer:
+
+```text
+Set up MagicInput on this computer by following
+https://github.com/betoxf/Magicinput/blob/main/docs/AI_SETUP.md
+Tell me when you need me to do something.
+```
+
+It installs MagicInput, works out whether this is the first or second computer, pairs them and checks the connection. You only click the permission switches on the Mac and the administrator prompt on Windows. Assistants can also run `magicinput status` at any time to see where things stand and what to do next.
+
 ## Using it
 
 | Control | What it does |
@@ -148,6 +161,7 @@ The apps are all you need, but everything is scriptable. On a Mac the command is
 | `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer is (auto by default) |
 | `magicinput peer <address>` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput install` / `uninstall` | Start (or stop starting) at login |
+| `magicinput status [--json]` | Installed? Running? Pairing code, connection, computers nearby, and the next step |
 | `magicinput config` | Show settings and where they're stored |
 | `magicinput run` | Run the background service in the foreground (for debugging) |
 
