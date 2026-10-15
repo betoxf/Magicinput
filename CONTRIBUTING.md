@@ -11,7 +11,7 @@ Thanks for helping. Issues and focused pull requests are welcome.
 ## Local setup
 
 ```bash
-git clone https://github.com/betoxf/magicinput.git
+git clone https://github.com/betoxf/Magicinput.git
 cd magicinput
 cargo test
 ```

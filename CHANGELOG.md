@@ -25,6 +25,6 @@ First public release.
 - Starts at login (macOS LaunchAgent, Windows scheduled task with administrator rights), with a Start menu entry on Windows.
 - Signed and notarized universal macOS app; Windows build with its own icon.
 
-[0.1.0]: https://github.com/betoxf/magicinput/releases/tag/v0.1.0
+[0.1.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.1.0
 
-[0.1.1]: https://github.com/betoxf/magicinput/releases/tag/v0.1.1
+[0.1.1]: https://github.com/betoxf/Magicinput/releases/tag/v0.1.1

@@ -8,8 +8,8 @@
   <p>Push the pointer off the edge of one screen and keep going on the other. Type, click, scroll, copy and paste, as if it were one computer. Like Universal Control, for PCs.</p>
 
   <p>
-    <a href="https://github.com/betoxf/magicinput/actions/workflows/ci.yml"><img src="https://github.com/betoxf/magicinput/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build"></a>
-    <a href="https://github.com/betoxf/magicinput/releases/latest"><img src="https://img.shields.io/github/v/release/betoxf/magicinput?display_name=tag&sort=semver" alt="Latest release"></a>
+    <a href="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml"><img src="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build"></a>
+    <a href="https://github.com/betoxf/Magicinput/releases/latest"><img src="https://img.shields.io/github/v/release/betoxf/Magicinput?display_name=tag&sort=semver" alt="Latest release"></a>
     <img src="https://img.shields.io/badge/macOS-13%2B-111827" alt="macOS 13 or newer">
     <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-111827" alt="Windows 10 or 11">
     <img src="https://img.shields.io/badge/Rust-2024-B7410E" alt="Rust">
@@ -59,11 +59,11 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 brew install --cask betoxf/tap/magicinput
 ```
 
-**Or download** `MagicInput-macOS.zip` from the [latest release](https://github.com/betoxf/magicinput/releases/latest), unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
+**Or download** `MagicInput-macOS.zip` from the [latest release](https://github.com/betoxf/Magicinput/releases/latest), unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
 
 ### Windows
 
-Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
+Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/Magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
 > [!NOTE]
 > The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the release.
@@ -156,7 +156,7 @@ The apps are all you need, but everything is scriptable. On a Mac the command is
 You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
 
 ```bash
-git clone https://github.com/betoxf/magicinput.git
+git clone https://github.com/betoxf/Magicinput.git
 cd magicinput
 cargo test
 ./scripts/bundle-mac.sh          # dist/MagicInput.app (UNIVERSAL=1 for Intel + Apple silicon)
