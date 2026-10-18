@@ -28,7 +28,7 @@ fn gui_domain() -> String {
 }
 
 #[cfg(target_os = "macos")]
-pub fn install() -> Result<String, String> {
+pub fn install(_keep: Option<u32>) -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe = exe.display().to_string();
     let plist = format!(
@@ -82,11 +82,15 @@ pub fn uninstall() -> Result<String, String> {
 const TASK: &str = "magicinput";
 
 #[cfg(windows)]
-pub fn install() -> Result<String, String> {
-    use std::path::PathBuf;
-
+fn install_dir() -> Result<std::path::PathBuf, String> {
     let local = std::env::var("LOCALAPPDATA").map_err(|_| "LOCALAPPDATA not set")?;
-    let dir = PathBuf::from(local).join("Programs").join("magicinput");
+    Ok(std::path::PathBuf::from(local).join("Programs").join("magicinput"))
+}
+
+/// `keep` is a settings window process to leave open: the one that asked for this install.
+#[cfg(windows)]
+pub fn install(keep: Option<u32>) -> Result<String, String> {
+    let dir = install_dir()?;
     let me = std::env::current_exe().map_err(|e| e.to_string())?;
     let src_dir = me.parent().ok_or("no exe dir")?.to_path_buf();
     let target = dir.join("magicinputw.exe");
@@ -94,7 +98,12 @@ pub fn install() -> Result<String, String> {
     // Stop the running service; when updating the exes, also close the settings window/tray.
     stop_running();
     if !same_file(&src_dir, &dir) {
-        let _ = run(Command::new("taskkill").args(["/f", "/im", "magicinput-app.exe"]));
+        let mut kill = Command::new("taskkill");
+        kill.args(["/f", "/im", "magicinput-app.exe"]);
+        if let Some(pid) = keep {
+            kill.args(["/fi", &format!("PID ne {pid}")]);
+        }
+        let _ = run(&mut kill);
         std::thread::sleep(std::time::Duration::from_millis(500));
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         for name in ["magicinput.exe", "magicinputw.exe", "magicinput-app.exe", "WebView2Loader.dll"] {
@@ -172,6 +181,19 @@ pub fn installed() -> bool {
     run(Command::new("schtasks").args(["/query", "/tn", TASK])).is_ok()
 }
 
+/// The installed settings window, when MagicInput is installed and this is a different copy of
+/// it (say, a newer download).
+#[cfg(windows)]
+pub fn outdated_install() -> Option<std::path::PathBuf> {
+    let me = std::env::current_exe().ok()?;
+    let dir = install_dir().ok()?;
+    let app = dir.join("magicinput-app.exe");
+    if same_file(me.parent()?, &dir) || std::fs::read(&me).ok() == std::fs::read(&app).ok() || !installed() {
+        return None;
+    }
+    Some(app)
+}
+
 /// Start menu entry that opens the settings window. It stays when the service is
 /// uninstalled, so the window can always turn it back on.
 #[cfg(windows)]
@@ -197,7 +219,9 @@ pub fn set_elevated(enable: bool) -> Result<(), String> {
 
     let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
     let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("magicinput.exe");
-    let (verb, file, args) = (wide("runas"), wide(&exe.display().to_string()), wide(if enable { "install" } else { "uninstall" }));
+    // Installing from a new download closes the other settings windows, but not this one.
+    let args = if enable { format!("install --keep {}", std::process::id()) } else { "uninstall".into() };
+    let (verb, file, args) = (wide("runas"), wide(&exe.display().to_string()), wide(&args));
     unsafe {
         let mut info: SHELLEXECUTEINFOW = std::mem::zeroed();
         info.cbSize = size_of::<SHELLEXECUTEINFOW>() as u32;
