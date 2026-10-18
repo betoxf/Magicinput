@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds, notarizes and publishes a release: ./scripts/release.sh 0.1.0
 # Needs: Developer ID certificate, App Store Connect API key (MAGICINPUT_NOTARY_KEY,
-# MAGICINPUT_NOTARY_KEY_ID, MAGICINPUT_NOTARY_ISSUER, or the asc CLI config), gh, mingw-w64.
+# MAGICINPUT_NOTARY_KEY_ID, MAGICINPUT_NOTARY_ISSUER, or the asc CLI config), gh, mingw-w64,
+# and wrangler logged in to the Cloudflare account with the download bucket.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="${1:?usage: release.sh X.Y.Z}"
@@ -40,8 +41,16 @@ rm -f dist/MagicInput-Windows.zip
 
 (cd dist && shasum -a 256 MagicInput-macOS.zip MagicInput-Windows.zip | tee SHA256SUMS.txt)
 
+# The installers go to the paid download store (Cloudflare R2, served by bullfighterstudio.com);
+# the GitHub release has the source, the notes and the installers' checksums.
+BUCKET="${MAGICINPUT_BUCKET:-magicinput-releases}"
+for f in MagicInput-macOS.zip MagicInput-Windows.zip; do
+  wrangler r2 object put "$BUCKET/$TAG/$f" --file "dist/$f" --remote
+done
+printf '{"version":"%s","mac":"%s/MagicInput-macOS.zip","windows":"%s/MagicInput-Windows.zip"}\n' "$VERSION" "$TAG" "$TAG" > dist/latest.json
+wrangler r2 object put "$BUCKET/latest.json" --file dist/latest.json --content-type application/json --remote
+
 git tag -a "$TAG" -m "MagicInput $VERSION"
 git push origin "$TAG"
-gh release create "$TAG" --title "MagicInput $VERSION" --notes-file "docs/releases/$TAG.md" \
-  dist/MagicInput-macOS.zip dist/MagicInput-Windows.zip dist/SHA256SUMS.txt
-echo "Released $TAG. Now update the Homebrew cask (docs/RELEASING.md)."
+gh release create "$TAG" --title "MagicInput $VERSION" --notes-file "docs/releases/$TAG.md" dist/SHA256SUMS.txt
+echo "Released $TAG."

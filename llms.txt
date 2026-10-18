@@ -10,8 +10,9 @@ To install it for someone, follow the runbook: it covers detecting the OS, insta
 - [README](https://github.com/betoxf/Magicinput/blob/main/README.md): features, install, quick start, controls, tips
 - [Architecture](https://github.com/betoxf/Magicinput/blob/main/docs/ARCHITECTURE.md): processes, protocol, security model
 - [Security](https://github.com/betoxf/Magicinput/blob/main/SECURITY.md): security boundaries and reporting
+- [Pricing and licensing](https://github.com/betoxf/Magicinput/blob/main/PRICING.md): open source (GPL-3.0, free to build); ready-made installers $10/device/month, $96/device/year or $199 once for 2 devices
 
 ## Downloads
 
-- [macOS (notarized, universal)](https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-macOS.zip), or `brew install --cask betoxf/tap/magicinput`
-- [Windows](https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-Windows.zip)
+- Ready-made installers (paid): https://bullfighterstudio.com/magicinput. After purchase, the person's download page has direct links for macOS (notarized, universal) and Windows.
+- Free: build from source (https://github.com/betoxf/Magicinput#build-from-source).
