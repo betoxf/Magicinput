@@ -242,6 +242,20 @@ pub fn run(background: bool) {
                             let _ = wv;
                         }
                     }
+                    "license" => {
+                        let key = v.as_str().unwrap_or("").trim().to_string();
+                        let ok = crate::license::verify(&key).is_some();
+                        if ok {
+                            save(|c| {
+                                c.license = key;
+                                c.license_checked = crate::license::now();
+                            });
+                        }
+                        if let Some((_, wv)) = &win {
+                            let _ = wv.evaluate_script(&format!("licenseResult({ok})"));
+                        }
+                    }
+                    "buy" => open_url(crate::license::BUY_URL),
                     "close" => {
                         close_panel(&mut win, &mut shown, tray.is_some());
                         closed_at = std::time::Instant::now();
@@ -493,6 +507,13 @@ fn status_line(st: &Option<status::Status>) -> String {
     }
 }
 
+fn open_url(url: &str) {
+    #[cfg(target_os = "macos")]
+    let _ = Command::new("open").arg(url).spawn();
+    #[cfg(windows)]
+    let _ = Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+}
+
 /// Load, change and save the config; the background service notices within a second.
 fn save(change: impl FnOnce(&mut Config)) {
     let mut c = Config::load();
@@ -694,6 +715,9 @@ fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> 
         "controlling": st.as_ref().is_some_and(|s| s.controlling),
         "controlled": st.as_ref().is_some_and(|s| s.controlled),
         "keyboard_to_peer": st.as_ref().is_some_and(|s| s.keyboard_to_peer),
+        "premium": st.as_ref().and_then(|s| s.premium.clone()),
+        "trial_days_left": st.as_ref().map_or(crate::license::TRIAL_DAYS, |s| s.trial_days_left),
+        "allowed": st.as_ref().is_none_or(|s| s.allowed),
         "screens": screens,
         "peer_size": { "w": peer.w, "h": peer.h },
         "placement": placement,

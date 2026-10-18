@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::Layout;
 use crate::geom::Rect;
 
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Which edge of *this* computer's screens the other computer sits on.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,6 +81,8 @@ pub enum Msg {
         screens: Vec<Rect>,
         layout: Option<Layout>,
         layout_time: u64,
+        /// The sender has Premium or is still in its free trial (see `license`).
+        access: bool,
     },
     /// The arrangement changed on the sender.
     Layout { layout: Option<Layout>, time: u64 },
@@ -98,5 +100,7 @@ pub enum Msg {
     Clipboard { text: String },
     /// The sender was just clicked with its own mouse or trackpad: send your keyboard here.
     Focus,
+    /// The sender's Premium or trial status changed.
+    Access { ok: bool },
     Ping,
 }

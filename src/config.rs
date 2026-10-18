@@ -59,6 +59,12 @@ pub struct Config {
     pub layout: Option<Layout>,
     /// When `layout` last changed (unix ms), so both computers keep the newest.
     pub layout_time: u64,
+    /// When MagicInput first ran on this computer (unix seconds), for the free trial.
+    pub first_run: u64,
+    /// Premium license key from the download page at bullfighterstudio.com.
+    pub license: String,
+    /// When a subscription key was last refreshed (unix seconds).
+    pub license_checked: u64,
 }
 
 impl Default for Config {
@@ -78,6 +84,9 @@ impl Default for Config {
             keyboard_follows_click: true,
             layout: None,
             layout_time: 0,
+            first_run: 0,
+            license: String::new(),
+            license_checked: 0,
         }
     }
 }

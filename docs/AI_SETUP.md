@@ -114,7 +114,7 @@ The output looks like this:
 | --- | --- | --- |
 | `first` | No other computer running MagicInput was found. | Give the person this computer's `pairing_code` and tell them to install MagicInput on the other computer (they can paste the prompt from the README into an assistant there). On the other computer, pairing is `magicinput pair <this code>`. |
 | `second` | Another computer runs MagicInput (`nearby`) but with a different code. | Get that computer's code and pair this one with it (below). |
-| `paired` | Already connected (`connected_to`). | Skip to step 5. |
+| `paired` | Already connected (`connected_to`). | Skip to step 5 (Premium) or 6. |
 
 `next_step` always says the next thing to do in plain words. `service` is `running`, `waiting_for_permission` (Mac permissions, step 2) or `not_running` (run `install` again).
 
@@ -133,7 +133,17 @@ Then, on this computer:
 
 The running service picks up the new code within a second and reconnects; no restart needed.
 
-## 5. Check the connection
+## 5. Premium (optional)
+
+Every computer gets a 14-day free trial; after that, MagicInput shares as long as one connected computer has Premium. If the person has a license key (from their download page at bullfighterstudio.com/magicinput), activate it on **one** computer:
+
+```bash
+"$MI" license <KEY>          # PowerShell: & $MI license <KEY>
+```
+
+`magicinput status` shows the Premium or trial state. Without a key, tell the person: *"You have a 14-day free trial. To keep using MagicInput after that, get Premium for one of your computers at bullfighterstudio.com/magicinput."*
+
+## 6. Check the connection
 
 ```bash
 until "$MI" status --json | grep -q '"connected_to": "'; do sleep 3; done; "$MI" status
@@ -147,7 +157,7 @@ while (-not ((& $MI status --json | Out-String | ConvertFrom-Json).connected_to)
 
 Usually this takes a few seconds. If it hasn't connected after about 30 seconds, see Troubleshooting.
 
-## 6. Tell the person how to use it
+## 7. Tell the person how to use it
 
 - *"Push the pointer firmly past the left or right edge of the screen and it continues on the other computer. Your keyboard follows it, and copied text comes along."*
 - *"Your keyboard also follows your last click: click into a field with the other computer's own mouse and keep typing on this keyboard."*

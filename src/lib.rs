@@ -4,6 +4,7 @@ mod config;
 mod core;
 mod geom;
 mod keymap;
+mod license;
 mod net;
 mod platform;
 mod proto;
@@ -59,6 +60,8 @@ enum Cmd {
     },
     /// Stop starting magicinput at login
     Uninstall,
+    /// Show Premium and the free trial, or activate a license key from your download page
+    License { key: Option<String> },
 }
 
 /// `settings` opens the settings window. Each program passes how: the window itself (Mac, and
@@ -117,6 +120,17 @@ pub fn main_with(settings: fn(bool)) {
             Ok(m) => println!("{m}"),
             Err(e) => exit(&e),
         },
+        Cmd::License { key } => {
+            if let Some(key) = key {
+                if license::verify(&key).is_none() {
+                    exit("That license key isn't valid or has expired. Copy it again from your download page.");
+                }
+                cfg.license = key.trim().to_string();
+                cfg.license_checked = license::now();
+                cfg.save();
+            }
+            println!("{}", license::describe(&license::access(&cfg)));
+        }
         Cmd::Uninstall => match service::uninstall() {
             Ok(m) => println!("{m}"),
             Err(e) => exit(&e),
@@ -154,6 +168,10 @@ fn run(mut cfg: Config) {
         cfg.save();
         print_pairing(&cfg);
     }
+    if cfg.first_run == 0 {
+        cfg.first_run = license::now();
+        cfg.save();
+    }
     // Never leave the cursor hidden or frozen, even if something goes badly wrong.
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -175,6 +193,7 @@ fn run(mut cfg: Config) {
     };
     std::thread::spawn(|| status::publish_loop(platform::core()));
     std::thread::spawn(move || watch_config(core, net));
+    std::thread::spawn(move || license_loop(core));
     if cfg.show_tray {
         ui::launch(true);
     }
@@ -207,6 +226,27 @@ fn watch_config(core: &'static core::Core, net: std::sync::Arc<net::Net>) {
             core.reload(cfg.clone());
             net.reload(cfg);
         }
+    }
+}
+
+/// Keep Premium and the trial current: renew subscription keys, and notice when the trial ends.
+fn license_loop(core: &'static core::Core) {
+    loop {
+        if let Some(mut cfg) = Config::read() {
+            if license::due(&cfg) {
+                cfg.license_checked = license::now();
+                match license::refresh(&cfg) {
+                    Some(key) => {
+                        log::info!("Premium license renewed");
+                        cfg.license = key;
+                    }
+                    None => log::warn!("Couldn't renew the Premium license (it keeps working until it expires)"),
+                }
+                cfg.save(); // the config watcher picks up the new key
+            }
+            core.update_access(&cfg);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(3600));
     }
 }
 
