@@ -25,7 +25,7 @@ On Windows the panel is a separate executable so the service never loads the web
 ```
 
 - **Platform** (`src/platform/`): macOS uses a Quartz event tap to see input and `CGEventPost` to replay it; Windows uses low-level keyboard/mouse hooks and `SendInput`. Events MagicInput injects are tagged so its own hooks ignore them.
-- **Core** (`src/core.rs`): each computer is either *local*, *controlling the other* or *being controlled*. It detects the crossing edge, hides and freezes the local pointer while forwarding, tracks the remote pointer, releases held keys and buttons when control moves, and swaps Ctrl/⌘ between Mac and Windows.
+- **Core** (`src/core.rs`): each computer is either *local*, *controlling the other* or *being controlled*. It detects the crossing edge, hides and freezes the local pointer while forwarding, tracks the remote pointer, releases held keys and buttons when control moves, and swaps Ctrl/⌘ between Mac and Windows. While both are local, a click with one computer's own mouse claims the keyboard: it sends `Focus`, and the other computer forwards its keys there until it is clicked itself or its own mouse moves deliberately.
 - **Geometry** (`src/geom.rs`): multi-display edges, entry points and the arrangement. An arrangement is stored in the coordinates of the computer it was made on and mirrored for the other one.
 - **Keys** (`src/keymap.rs`): macOS key codes and Windows scan codes are translated through USB HID usages, so each computer applies its own keyboard layout.
 
@@ -39,6 +39,7 @@ After the handshake both sides exchange `Hello` (name, OS, protocol version, scr
 | `Move { dx, dy, t }` | Relative pointer movement in logical points, with the sender's timestamp. |
 | `Button`, `Wheel`, `Key { hid }` | Clicks, scrolling (Windows wheel units), keys as USB HID usages. |
 | `Clipboard { text }` | Copied text, sent when control moves. |
+| `Focus` | The sender was clicked with its own mouse: send your keys here (keyboard follows the click). |
 | `Layout` | The arrangement changed; the newest one wins. |
 | `Ping` | Keep-alive every second when idle; a silent link is dropped after 5 s. |
 

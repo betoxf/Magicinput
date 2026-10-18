@@ -383,7 +383,7 @@
     let dot = 'dot', text;
     if (!s.running) text = s.login ? 'Starting…' : 'Off';
     else if (!s.peer) { dot += ' wait'; text = 'Looking for your other computer…'; }
-    else { dot += ' ok'; text = s.controlling ? 'Controlling ' + s.peer : s.controlled ? s.peer + ' is in control' : 'Connected to ' + s.peer; }
+    else { dot += ' ok'; text = s.controlling ? 'Controlling ' + s.peer : s.controlled ? s.peer + ' is in control' : s.keyboard_to_peer ? 'Keyboard typing on ' + s.peer : 'Connected to ' + s.peer; }
     $('dot').className = dot; $('status').textContent = text;
     $('power').classList.toggle('on', s.login);
     $('power').title = s.login ? 'On, starts at login' : 'Off';

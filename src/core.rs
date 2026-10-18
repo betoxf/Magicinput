@@ -27,7 +27,7 @@ const MAX_CLIPBOARD: usize = 60_000;
 /// Movement arriving later than this (beyond the usual network delay) is replayed as a glide.
 const LATE_MS: f64 = 12.0;
 /// Movement (points) of this computer's own mouse, within half a second, that takes control
-/// back while the other computer is driving it.
+/// back while the other computer is driving it (and brings this computer's keyboard back).
 const TAKE_OVER_MOTION: f64 = 24.0;
 /// In auto mode (no side configured) you have to push this far past the edge, so brushing
 /// against it doesn't switch computers.
@@ -72,6 +72,10 @@ struct State {
     local_buttons: HashSet<Button>,
     /// Keys we are forwarding (controller side), to spot the escape hotkey.
     forwarded_keys: HashSet<u16>,
+    /// The other computer was clicked last: our keyboard types there (see `claim_keyboard`).
+    keys_to_peer: bool,
+    /// We were clicked last and told the other computer, so its keyboard types here.
+    keyboard_claimed: bool,
     /// Keys and buttons we injected (target side), released when control leaves.
     injected_keys: HashSet<u16>,
     injected_buttons: HashSet<Button>,
@@ -131,6 +135,8 @@ impl Core {
                 local_motion_at: long_ago,
                 local_buttons: HashSet::new(),
                 forwarded_keys: HashSet::new(),
+                keys_to_peer: false,
+                keyboard_claimed: false,
                 injected_keys: HashSet::new(),
                 injected_buttons: HashSet::new(),
                 cur: (0.0, 0.0),
@@ -195,11 +201,36 @@ impl Core {
                     LocalEvent::Button { button, down } => {
                         if down {
                             st.local_buttons.insert(button);
+                            self.claim_keyboard(&mut st);
                         } else {
                             st.local_buttons.remove(&button);
                         }
                     }
+                    LocalEvent::Key { hid, down } if st.keys_to_peer => {
+                        if down {
+                            st.forwarded_keys.insert(hid);
+                        } else if !st.forwarded_keys.remove(&hid) {
+                            // Pressed before the keyboard moved over: let it come up here.
+                            return false;
+                        }
+                        // The escape hotkey also brings the keyboard home.
+                        let k = &st.forwarded_keys;
+                        if down
+                            && hid == keymap::HID_ESCAPE
+                            && k.iter().any(|h| keymap::is_ctrl(*h))
+                            && k.iter().any(|h| keymap::is_alt(*h))
+                        {
+                            self.keyboard_home(&mut st);
+                            return true;
+                        }
+                        self.send(Msg::Key { hid, down });
+                        return true;
+                    }
                     LocalEvent::Move { x, y, dx, dy } => {
+                        // Using this computer's own mouse again brings its keyboard back too.
+                        if st.keys_to_peer && deliberate_motion(&mut st, dx, dy) {
+                            self.keyboard_home(&mut st);
+                        }
                         if st.peer.is_none()
                             || !st.local_buttons.is_empty()
                             || st.last_switch.elapsed() < Duration::from_millis(300)
@@ -245,6 +276,9 @@ impl Core {
                         self.mode.store(REMOTE, Ordering::SeqCst);
                         st.push = 0.0;
                         st.local_buttons.clear();
+                        st.keys_to_peer = false;
+                        st.keyboard_claimed = false;
+                        self.release_injected(&mut st);
                         st.active_side = side;
                         st.last_switch = Instant::now();
                         st.forwarded_keys.clear();
@@ -268,12 +302,7 @@ impl Core {
                 let take_over = match ev {
                     LocalEvent::Move { x, y, dx, dy } => {
                         st.cur = (x, y);
-                        if st.local_motion_at.elapsed() > Duration::from_millis(500) {
-                            st.local_motion = 0.0;
-                        }
-                        st.local_motion += dx.abs() + dy.abs();
-                        st.local_motion_at = Instant::now();
-                        st.local_motion > TAKE_OVER_MOTION
+                        deliberate_motion(&mut st, dx, dy)
                     }
                     LocalEvent::Button { down: true, .. } | LocalEvent::Key { down: true, .. } => true,
                     _ => false,
@@ -286,6 +315,11 @@ impl Core {
                     st.last_switch = Instant::now();
                     st.local_motion = 0.0;
                     self.send(Msg::Leave { ratio });
+                    // Clicking or typing here (not just moving the mouse) also brings the other
+                    // computer's keyboard here.
+                    if matches!(ev, LocalEvent::Button { .. } | LocalEvent::Key { .. }) {
+                        self.claim_keyboard(&mut st);
+                    }
                     let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
                     info!("Using this computer's own mouse/keyboard: taking control back from {name}");
                     drop(st);
@@ -384,6 +418,10 @@ impl Core {
                 st.push = 0.0;
                 st.local_buttons.clear();
                 st.local_motion = 0.0;
+                if st.keys_to_peer {
+                    self.keyboard_home(&mut st);
+                }
+                st.keyboard_claimed = false;
                 self.mode.store(CONTROLLED, Ordering::SeqCst);
                 let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
                 info!("← {name} is controlling this computer");
@@ -446,7 +484,7 @@ impl Core {
                 let s = self.cfg.read().unwrap().scroll_speed;
                 platform::inject_wheel(dx * s, dy * s);
             }
-            Msg::Key { hid, down } if mode == CONTROLLED => {
+            Msg::Key { hid, down } if mode == CONTROLLED || (mode == LOCAL && st.keyboard_claimed) => {
                 let hid = match &st.peer {
                     Some(p) if self.cfg.read().unwrap().swap_ctrl_cmd && p.os != Os::current() => {
                         keymap::swap_ctrl_gui(hid)
@@ -459,6 +497,17 @@ impl Core {
                     return; // never pressed here (pressed before control arrived)
                 }
                 platform::inject_key(hid, down);
+            }
+            // The other computer was clicked: our keyboard types there now.
+            Msg::Focus if mode == LOCAL => {
+                self.release_injected(&mut st);
+                st.keyboard_claimed = false;
+                st.local_motion = 0.0;
+                st.keys_to_peer = self.cfg.read().unwrap().keyboard_follows_click;
+                if st.keys_to_peer {
+                    let name = st.peer.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                    info!("Keyboard → {name} (it was clicked last)");
+                }
             }
             Msg::Layout { layout, time } => {
                 if time > self.cfg.read().unwrap().layout_time {
@@ -519,6 +568,12 @@ impl Core {
         let (layout, time) = (cfg.layout.clone(), cfg.layout_time);
         *self.cfg.write().unwrap() = cfg;
         let mut st = self.st.lock().unwrap();
+        if !self.cfg.read().unwrap().keyboard_follows_click {
+            if st.keys_to_peer {
+                self.keyboard_home(&mut st);
+            }
+            st.keyboard_claimed = false;
+        }
         if st.peer.is_some() {
             let hint = st.peer.as_ref().and_then(|p| p.side_hint);
             st.side = side.or(hint.map(Side::opposite));
@@ -563,6 +618,7 @@ impl Core {
             side: st.side.map(|s| format!("{s:?}").to_lowercase()),
             controlling: mode == REMOTE,
             controlled: mode == CONTROLLED,
+            keyboard_to_peer: st.keys_to_peer,
             screens: platform::logical_displays(),
             peer_screens: st.peer.as_ref().map(|p| p.screens.clone()).unwrap_or_default(),
             ..Default::default()
@@ -572,13 +628,17 @@ impl Core {
     pub fn on_disconnect(&self) {
         self.replay.lock().unwrap().items.clear();
         let mut st = self.st.lock().unwrap();
+        st.keys_to_peer = false;
+        st.keyboard_claimed = false;
+        st.forwarded_keys.clear();
         match self.mode.load(Ordering::SeqCst) {
             REMOTE => self.come_home(&mut st, 0.5),
             CONTROLLED => {
                 self.release_injected(&mut st);
                 self.mode.store(LOCAL, Ordering::SeqCst);
             }
-            _ => {}
+            // Keys the other computer was typing here.
+            _ => self.release_injected(&mut st),
         }
         if let Some(p) = st.peer.take() {
             warn!("Disconnected from {}", p.name);
@@ -599,7 +659,33 @@ impl Core {
         st.forwarded_keys.clear();
         st.local_buttons.clear();
         st.push = 0.0;
+        st.keys_to_peer = false;
+        st.keyboard_claimed = false;
         platform::grab_end(p.0, p.1);
+    }
+
+    /// This computer was clicked with its own mouse or trackpad: from now on the other computer's
+    /// keyboard types here too, until it is clicked itself ("the keyboard follows the click").
+    fn claim_keyboard(&self, st: &mut State) {
+        if st.peer.is_none() || !self.cfg.read().unwrap().keyboard_follows_click {
+            return;
+        }
+        if st.keys_to_peer {
+            self.keyboard_home(st);
+        }
+        if !st.keyboard_claimed {
+            st.keyboard_claimed = true;
+            self.send(Msg::Focus);
+        }
+    }
+
+    /// Stop sending our keyboard to the other computer (releasing any keys held there).
+    fn keyboard_home(&self, st: &mut State) {
+        for h in std::mem::take(&mut st.forwarded_keys) {
+            self.send(Msg::Key { hid: h, down: false });
+        }
+        st.keys_to_peer = false;
+        info!("Keyboard back on this computer");
     }
 
     fn release_injected(&self, st: &mut State) {
@@ -647,4 +733,15 @@ fn save_layout(layout: Option<crate::config::Layout>, time: u64) {
     c.layout = layout;
     c.layout_time = time;
     c.save();
+}
+
+/// This computer's own mouse moved on purpose (`TAKE_OVER_MOTION` within half a second), not
+/// just a twitch.
+fn deliberate_motion(st: &mut State, dx: f64, dy: f64) -> bool {
+    if st.local_motion_at.elapsed() > Duration::from_millis(500) {
+        st.local_motion = 0.0;
+    }
+    st.local_motion += dx.abs() + dy.abs();
+    st.local_motion_at = Instant::now();
+    st.local_motion > TAKE_OVER_MOTION
 }

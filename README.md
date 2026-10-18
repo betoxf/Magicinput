@@ -44,6 +44,7 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 | Works both ways | Drive the PC from the Mac, or the Mac from the PC's keyboard and mouse. Whichever you're touching is in charge. |
 | Just push past the edge | **Auto** mode needs no setup: push firmly past the left or right edge. Or arrange the screens exactly. |
 | Arrange like System Settings | Drag the PC next to your displays, iPad (Sidecar) included, and move the iPad itself. The pointer crosses only where the screens touch, at the matching height. |
+| Keyboard follows the click | Click into a text field with the PC's own mouse and keep typing on the Mac keyboard (and the other way round). |
 | Copy and paste across | Copied text follows the pointer to the other computer. |
 | Mac shortcuts on the PC | ⌘C copies on Windows (Ctrl and ⌘ swap automatically; can be turned off). |
 | Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
@@ -82,6 +83,8 @@ Download `MagicInput-Windows.zip` from the [latest release](https://github.com/b
 4. **Move across.** Push the pointer firmly past the left or right edge of your screen. To make it exact, drag the other computer to where it really sits in **Displays**.
 
 **Switching to the other computer’s own mouse or keyboard?** A deliberate mouse movement, click, or key press reclaims control there. You can then cross its screen edge normally. Small mouse twitches are ignored.
+
+**The keyboard follows your last click.** Click with the PC's own mouse (say, into a text field) and your Mac keyboard types there; click on the Mac again and it types on the Mac. It works the same the other way round. Moving a computer's own mouse deliberately also brings its keyboard back. Turn it off with `keyboard_follows_click = false` in the config file (`magicinput config` shows where it is).
 
 An iPad participates as a display connected to your Mac through Sidecar; MagicInput does not require or provide a standalone iPad app.
 
