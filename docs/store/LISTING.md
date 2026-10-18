@@ -31,6 +31,8 @@ Push the pointer off the edge of your screen and it keeps going on the other com
 • Private: no account, no cloud, no telemetry. It only talks to your own computers on your local network.
 • Open source (GPL-3.0): anyone can read and audit the code.
 
+Free for 14 days. Buy it here once to unlock MagicInput on this PC and on the computer connected to it, or use a license key from bullfighterstudio.com/magicinput.
+
 MagicInput needs a Mac (macOS 13 or newer) running MagicInput too, on the same local network. Get the Mac version at bullfighterstudio.com/magicinput.
 
 ## What's new

@@ -1,21 +1,23 @@
 # Pricing and licensing
 
-MagicInput is open source under the [GPL-3.0](LICENSE). Anyone can read the code, have it audited, or build it themselves for free, and on a Mac it's free with Homebrew. The ready-made installers (a signed Mac disk image and a Windows setup) are paid.
+MagicInput is open source under the [GPL-3.0](LICENSE): anyone can read the code, have it audited, or build it. Every computer gets a **14-day free trial**. After that, MagicInput shares between your computers as long as **one of them has Premium**: one license unlocks every computer connected to the licensed one.
 
 | Plan | Price |
 | --- | --- |
-| Monthly | $10 per device per month |
-| Yearly | $96 per device per year (20% off) |
-| Lifetime | $199 once, for 2 devices (a Mac and a PC) |
+| Monthly | $10 per month |
+| Yearly | $96 per year (20% off) |
+| Lifetime | $199 once |
 
-A device is one computer running MagicInput: a Mac and a PC are two. Every plan includes the signed and notarized Mac disk image, the Windows setup and all updates (for as long as the plan is active, or forever with Lifetime).
+Each plan is one license for your setup, with the signed and notarized Mac disk image, the Windows setup and all updates (while the plan is active, or forever with Lifetime).
 
-**Get it at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput).** After paying you land on your download page. Bookmark it: it always has the latest version.
+**Get it at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput).** After paying you land on your download page, with your license key and the installers. Bookmark it: it always has the latest version.
 
-## Free options
+**Activate Premium** on one of your computers: in MagicInput, click **Free trial** at the bottom of the panel and paste the key (or run `magicinput license <KEY>`). A monthly or yearly key renews itself: MagicInput fetches a fresh one from bullfighterstudio.com about once a day.
+
+## Other ways to install
 
 - **Mac:** `brew install --cask betoxf/tap/magicinput`.
-- **Any computer:** build it from this repository; see [Build from source](README.md#build-from-source). Copies you build yourself are yours under the GPL-3.0 and need no plan.
+- **Any computer:** build it from this repository; see [Build from source](README.md#build-from-source). Copies you build yourself are yours under the GPL-3.0, with the same trial and Premium unlock.
 
 ## Check it yourself
 

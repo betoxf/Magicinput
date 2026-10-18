@@ -55,7 +55,9 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 
 ## Installation
 
-### Free
+### Try it free
+
+Every computer gets a 14-day free trial. After that, one Premium license on any of your computers unlocks the computers connected to it.
 
 **Mac, with Homebrew:**
 
@@ -67,7 +69,7 @@ brew install --cask betoxf/tap/magicinput
 
 ### Ready-made installers
 
-**Get the signed Mac disk image and the Windows setup at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per device per month, $96 per device per year, or $199 once for a Mac and a PC ([pricing](PRICING.md)).
+**Get Premium, the signed Mac disk image and the Windows setup at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per month, $96 per year, or $199 once, for all your computers ([pricing](PRICING.md)). Paste the license key from your download page into MagicInput (click **Free trial** at the bottom of the panel).
 
 - **macOS:** open `MagicInput.dmg` and drag **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
 - **Windows:** run `MagicInput-Setup.exe` and click **Install**. It installs MagicInput for you, starts it at login, allows it through the firewall on private networks and adds it to the Start menu and to Settings → Apps. To update, run the new setup; your settings are kept.
@@ -152,7 +154,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the details.
 ## Privacy and security
 
 - Input, clipboard text and settings travel only between your two computers, encrypted.
-- MagicInput has no servers, no account and no telemetry.
+- MagicInput has no servers, no account and no telemetry. With a monthly or yearly license, it fetches a fresh key from bullfighterstudio.com about once a day; that's the only server it talks to.
 - Nothing is accepted from outside your local network.
 - The macOS permissions (Accessibility, Input Monitoring) are what any keyboard/mouse sharing tool needs to see and send input.
 - It's open source, so you or your security team can audit exactly what it does, and check official downloads against the published checksums ([how](PRICING.md#check-it-yourself)).
@@ -170,13 +172,14 @@ The apps are all you need, but everything is scriptable. On a Mac the command is
 | `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer is (auto by default) |
 | `magicinput peer <address>` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput install` / `uninstall` | Start (or stop starting) at login |
-| `magicinput status [--json]` | Installed? Running? Pairing code, connection, computers nearby, and the next step |
+| `magicinput status [--json]` | Installed? Running? Pairing code, connection, computers nearby, Premium, and the next step |
+| `magicinput license [KEY]` | Show Premium and the free trial, or activate a license key |
 | `magicinput config` | Show settings and where they're stored |
 | `magicinput run` | Run the background service in the foreground (for debugging) |
 
 ## Build from source
 
-Free, and the same code as the paid installers. You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
+The same code as the official installers, with the same trial and Premium. You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
 
 ```bash
 git clone https://github.com/betoxf/Magicinput.git

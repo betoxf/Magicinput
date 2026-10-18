@@ -6,6 +6,8 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ### Added
 
+- Free trial and Premium. Every computer gets 14 days; after that, MagicInput shares as long as one of the connected computers has Premium, which unlocks the others. Get it at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput) ($10 a month, $96 a year or $199 once, for all your computers) and paste the license key from the download page into the panel (or `magicinput license <KEY>`). Keys are checked offline against the studio's public key; monthly and yearly keys refresh themselves once a day. The Microsoft Store purchase counts as Premium. Protocol 5: update both computers.
+
 - Microsoft Store version: `scripts/package-msix.sh` builds an MSIX package. When MagicInput runs from it, Windows starts it at sign-in and handles the firewall and updates, and the power button turns the startup task on or off. `magicinput` works in a terminal through an app alias. The Store build can't control apps that run as administrator.
 
 ## [0.3.1] - 2026-10-18
