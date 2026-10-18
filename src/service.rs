@@ -90,6 +90,9 @@ fn install_dir() -> Result<std::path::PathBuf, String> {
 /// `keep` is a settings window process to leave open: the one that asked for this install.
 #[cfg(windows)]
 pub fn install(keep: Option<u32>) -> Result<String, String> {
+    if packaged() {
+        return install_packaged();
+    }
     let dir = install_dir()?;
     let me = std::env::current_exe().map_err(|e| e.to_string())?;
     let src_dir = me.parent().ok_or("no exe dir")?.to_path_buf();
@@ -165,7 +168,7 @@ fn stop_running() {
     let _ = run(Command::new("powershell").args([
         "-NoProfile",
         "-Command",
-        "Get-CimInstance Win32_Process -Filter \"Name like 'magicinput%.exe'\" | Where-Object { $_.CommandLine -match ' run$' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+        "Get-CimInstance Win32_Process -Filter \"Name like 'magicinput%.exe'\" | Where-Object { $_.Name -eq 'magicinputw.exe' -or $_.CommandLine -match ' run$' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
     ]));
     // Wait until the service's port is free.
     for _ in 0..20 {
@@ -178,13 +181,57 @@ fn stop_running() {
 
 #[cfg(windows)]
 pub fn installed() -> bool {
+    if packaged() {
+        use windows::ApplicationModel::StartupTaskState as S;
+        return startup_task().and_then(|t| t.State()).is_ok_and(|s| s == S::Enabled || s == S::EnabledByPolicy);
+    }
     run(Command::new("schtasks").args(["/query", "/tn", TASK])).is_ok()
+}
+
+/// Installed from the Microsoft Store (an MSIX package): Windows starts the service at sign-in
+/// through the package's startup task, applies its firewall rules and keeps it up to date.
+#[cfg(windows)]
+pub fn packaged() -> bool {
+    use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+    let mut len = 0;
+    // With a package this asks for a bigger buffer (ERROR_INSUFFICIENT_BUFFER).
+    unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) == 122 }
+}
+
+/// The startup task in the Store package's AppxManifest.xml (installer/msix).
+#[cfg(windows)]
+fn startup_task() -> windows::core::Result<windows::ApplicationModel::StartupTask> {
+    windows::ApplicationModel::StartupTask::GetAsync(&"MagicInputService".into())?.join()
+}
+
+/// Store version: turn on the startup task and start the service now.
+#[cfg(windows)]
+fn install_packaged() -> Result<String, String> {
+    use windows::ApplicationModel::StartupTaskState as S;
+    let task = startup_task().map_err(|e| e.to_string())?;
+    let mut state = task.State().map_err(|e| e.to_string())?;
+    if state == S::Disabled {
+        state = task.RequestEnableAsync().and_then(|op| op.join()).map_err(|e| e.to_string())?;
+    }
+    // Not running yet if its port is free.
+    if std::net::TcpListener::bind(("0.0.0.0", crate::config::DEFAULT_PORT)).is_ok() {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("magicinputw.exe");
+        Command::new(exe).arg("run").spawn().map_err(|e| e.to_string())?;
+    }
+    Ok(if state == S::Enabled || state == S::EnabledByPolicy {
+        "Started: magicinput now starts when you sign in.".into()
+    } else {
+        "Started. To start it at sign-in too, turn MagicInput on in Settings > Apps > Startup.".into()
+    })
 }
 
 /// The installed settings window, when MagicInput is installed and this is a different copy of
 /// it (say, a newer download).
 #[cfg(windows)]
 pub fn outdated_install() -> Option<std::path::PathBuf> {
+    if packaged() {
+        return None;
+    }
     let me = std::env::current_exe().ok()?;
     let dir = install_dir().ok()?;
     let app = dir.join("magicinput-app.exe");
@@ -214,6 +261,9 @@ fn shortcut(target: &std::path::Path) {
 #[cfg(windows)]
 pub fn set_elevated(enable: bool) -> Result<(), String> {
     use windows_sys::Win32::Foundation::CloseHandle;
+    if packaged() {
+        return if enable { install_packaged() } else { uninstall() }.map(|_| ());
+    }
     use windows_sys::Win32::System::Threading::{INFINITE, WaitForSingleObject};
     use windows_sys::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
 
@@ -249,6 +299,11 @@ fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
 
 #[cfg(windows)]
 pub fn uninstall() -> Result<String, String> {
+    if packaged() {
+        startup_task().and_then(|t| t.Disable()).map_err(|e| e.to_string())?;
+        stop_running();
+        return Ok("Stopped: magicinput no longer starts when you sign in.".into());
+    }
     stop_running();
     let _ = run(Command::new("schtasks").args(["/delete", "/f", "/tn", TASK]));
     let _ = run(Command::new("netsh").args(["advfirewall", "firewall", "delete", "rule", "name=magicinput"]));

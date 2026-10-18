@@ -425,11 +425,17 @@ window.ipc = { postMessage() {} };
 const params = new URLSearchParams(location.search);
 if (params.has('dark')) document.documentElement.classList.add('dark');
 window.addEventListener('load', () => {
-  render({ os: 'mac', version: '0.1.0', name: 'MacBook Pro', code: 'K7QP-3MZD', swap: true, clipboard: true, tray: true,
-    mouse_speed: 1.15, scroll_speed: 0.9, login: true, running: true, peer: 'Windows PC', peer_os: 'Windows',
-    controlling: params.has('controlling'), controlled: false,
-    screens: [{ x: 0, y: 0, w: 1512, h: 982, name: 'Built-in', id: 1, main: true }, { x: 1512, y: 40, w: 1180, h: 820, name: 'iPad', id: 2, main: false }],
-    peer_size: { w: 1707, h: 960 }, placement: { side: 'right', offset: 0, length: 960 } });
+  render(params.has('windows')
+    ? { os: 'windows', version: '0.3.1', name: 'Windows PC', code: 'K7QP-3MZD', swap: true, clipboard: true, tray: true,
+        mouse_speed: 1, scroll_speed: 1, login: true, running: true, peer: 'MacBook Pro', peer_os: 'Mac',
+        controlling: false, controlled: false,
+        screens: [{ x: 0, y: 0, w: 1707, h: 960, name: 'Display 1', id: 1, main: true }],
+        peer_size: { w: 1512, h: 982 }, placement: { side: 'left', offset: 0, length: 960 } }
+    : { os: 'mac', version: '0.1.0', name: 'MacBook Pro', code: 'K7QP-3MZD', swap: true, clipboard: true, tray: true,
+        mouse_speed: 1.15, scroll_speed: 0.9, login: true, running: true, peer: 'Windows PC', peer_os: 'Windows',
+        controlling: params.has('controlling'), controlled: false,
+        screens: [{ x: 0, y: 0, w: 1512, h: 982, name: 'Built-in', id: 1, main: true }, { x: 1512, y: 40, w: 1180, h: 820, name: 'iPad', id: 2, main: false }],
+        peer_size: { w: 1707, h: 960 }, placement: { side: 'right', offset: 0, length: 960 } });
   setWallpapers({ 0: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMxZTNhOGEnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzdjM2FlZCcvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2Y0NzJiNicvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=", 1: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMwZjc2NmUnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzI1NjNlYicvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2E3OGJmYScvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=" });
   document.getElementById('panel').classList.add('in');
   if (params.has('pairing')) document.getElementById('panel').classList.add('pairing');

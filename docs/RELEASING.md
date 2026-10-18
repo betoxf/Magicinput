@@ -35,7 +35,18 @@ brew update && brew upgrade --cask magicinput   # or install
 brew style Casks/magicinput.rb
 ```
 
-## 4. Check
+## 4. Microsoft Store
+
+The Store version is an MSIX package that Microsoft signs. Windows starts the service at sign-in (the package's startup task), applies its firewall rules and updates it; the app notices it's packaged and skips its own installer.
+
+```bash
+MSIX_NAME=... MSIX_PUBLISHER="CN=..." MSIX_PUBLISHER_DISPLAY="..." \
+MSIX_PACK_HOST=<windows ssh host> MSIX_MAKEAPPX='C:\...\makeappx.exe' ./scripts/package-msix.sh
+```
+
+The identity values are on Partner Center's Product identity page. `makeappx.exe` comes with the Windows SDK, or the `Microsoft.Windows.SDK.BuildTools` NuGet package. Upload `dist/MagicInput.msix` in a new submission, with the listing in `docs/store/LISTING.md`.
+
+## 5. Check
 
 Open a download page from a test purchase (a 100%-off promotion code on a subscription works; one-time payments can't be discounted to $0) and confirm both downloads match `SHA256SUMS.txt`.
 

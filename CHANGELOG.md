@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- Microsoft Store version: `scripts/package-msix.sh` builds an MSIX package. When MagicInput runs from it, Windows starts it at sign-in and handles the firewall and updates, and the power button turns the startup task on or off. `magicinput` works in a terminal through an app alias. The Store build can't control apps that run as administrator.
+
 ## [0.3.1] - 2026-10-18
 
 ### Added
