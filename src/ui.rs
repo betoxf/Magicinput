@@ -677,6 +677,7 @@ fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> 
         "peer_os": st.as_ref().and_then(|s| s.peer_os.clone()),
         "controlling": st.as_ref().is_some_and(|s| s.controlling),
         "controlled": st.as_ref().is_some_and(|s| s.controlled),
+        "keyboard_to_peer": st.as_ref().is_some_and(|s| s.keyboard_to_peer),
         "screens": screens,
         "peer_size": { "w": peer.w, "h": peer.h },
         "placement": placement,

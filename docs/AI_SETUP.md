@@ -133,6 +133,7 @@ Usually this takes a few seconds. If it hasn't connected after about 30 seconds,
 ## 6. Tell the person how to use it
 
 - *"Push the pointer firmly past the left or right edge of the screen and it continues on the other computer. Your keyboard follows it, and copied text comes along."*
+- *"Your keyboard also follows your last click: click into a field with the other computer's own mouse and keep typing on this keyboard."*
 - *"To make it exact, open MagicInput and drag the other computer to where it really sits under Displays. You can also move your iPad there."*
 - *"Control+Option+Esc on the Mac, or Ctrl+Alt+Esc on the PC, always brings the pointer back."*
 

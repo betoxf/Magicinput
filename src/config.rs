@@ -52,6 +52,9 @@ pub struct Config {
     pub clipboard: bool,
     /// Show the icon in the menu bar (Mac) / notification area (Windows).
     pub show_tray: bool,
+    /// The keyboard follows the last click: after clicking with one computer's own mouse,
+    /// the other computer's keyboard types there too.
+    pub keyboard_follows_click: bool,
     /// Arrangement from the settings window; `None` = auto / `peer_side`.
     pub layout: Option<Layout>,
     /// When `layout` last changed (unix ms), so both computers keep the newest.
@@ -72,6 +75,7 @@ impl Default for Config {
             scroll_speed: 1.0,
             clipboard: true,
             show_tray: false,
+            keyboard_follows_click: true,
             layout: None,
             layout_time: 0,
         }

@@ -16,6 +16,8 @@ pub struct Status {
     pub side: Option<String>,
     pub controlling: bool,
     pub controlled: bool,
+    /// This computer's keyboard is typing on the other computer (it was clicked last).
+    pub keyboard_to_peer: bool,
     /// The service is running but waiting for macOS permissions.
     pub waiting_for_permission: bool,
     /// Screens of this computer and of the other one, in logical units.

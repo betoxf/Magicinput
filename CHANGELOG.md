@@ -4,6 +4,10 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ## Unreleased
 
+### Added
+
+- The keyboard follows your last click. Click with one computer's own mouse or trackpad (for example into a text field on the PC) and the other computer's keyboard types there too, until you click on the other computer, move its own mouse deliberately, or press Control+Option+Esc (Ctrl+Alt+Esc on the PC). Turn it off with `keyboard_follows_click = false` in the config file. Both computers need this version (protocol 4).
+
 ### Fixed
 
 - `magicinput install` on a Mac no longer fails with "Bootstrap failed: 5" when MagicInput is already running (it waits for the old copy to stop).
