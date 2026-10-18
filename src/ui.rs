@@ -63,14 +63,30 @@ pub fn launch(background: bool) {
 }
 
 pub fn run(background: bool) {
-    // Already open? Bring that one forward instead.
-    if let Ok(mut s) = TcpStream::connect_timeout(&([127, 0, 0, 1], UI_PORT).into(), Duration::from_millis(300)) {
+    // Opened from a new download while another copy is installed: update the installed copy
+    // first (Windows asks for administrator rights), then open its window. This comes before
+    // the check below so an old window that's still open doesn't take over.
+    #[cfg(windows)]
+    if !background
+        && let Some(app) = service::outdated_install()
+        && service::set_elevated(true).is_ok()
+        && service::outdated_install().is_none()
+    {
+        // Started in its own folder, so the download can be deleted.
+        let _ = Command::new(&app).arg("settings").current_dir(app.parent().unwrap()).spawn();
+        return;
+    }
+    // Already open? Bring that one forward instead. Taking the port first settles a tie, such
+    // as the service starting the icon just as an update opens the window.
+    let listener = TcpListener::bind(("127.0.0.1", UI_PORT)).ok();
+    if listener.is_none()
+        && let Ok(mut s) = TcpStream::connect_timeout(&([127, 0, 0, 1], UI_PORT).into(), Duration::from_millis(300))
+    {
         if !background {
             let _ = s.write_all(b"show\n");
         }
         return;
     }
-    let listener = TcpListener::bind(("127.0.0.1", UI_PORT)).ok();
 
     let cfg = Config::load();
     if cfg.code.is_empty() {
@@ -488,7 +504,7 @@ fn set_login(enable: bool, proxy: &EventLoopProxy<UserEvent>) {
     let p = proxy.clone();
     std::thread::spawn(move || {
         #[cfg(target_os = "macos")]
-        let r = if enable { service::install().map(|_| ()) } else { service::uninstall().map(|_| ()) };
+        let r = if enable { service::install(None).map(|_| ()) } else { service::uninstall().map(|_| ()) };
         #[cfg(windows)]
         let r = service::set_elevated(enable);
         if let Err(e) = r {

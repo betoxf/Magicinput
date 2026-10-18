@@ -52,7 +52,11 @@ enum Cmd {
         json: bool,
     },
     /// Start magicinput automatically when you log in (and start it now)
-    Install,
+    Install {
+        /// A settings window process to leave open (the one asking for the install)
+        #[arg(long, hide = true)]
+        keep: Option<u32>,
+    },
     /// Stop starting magicinput at login
     Uninstall,
 }
@@ -109,7 +113,7 @@ pub fn main_with(settings: fn(bool)) {
             print!("{}", toml::to_string_pretty(&cfg).unwrap());
         }
         Cmd::Status { json } => status::report(&mut cfg, json),
-        Cmd::Install => match service::install() {
+        Cmd::Install { keep } => match service::install(keep) {
             Ok(m) => println!("{m}"),
             Err(e) => exit(&e),
         },

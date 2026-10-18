@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- Updating on Windows: open `magicinput-app.exe` from the new download. After the administrator prompt it replaces the installed copy, restarts MagicInput and opens the new panel, even if the old panel is still open. (Before, it just opened the old panel and kept the old version running.)
+
 ## [0.3.0] - 2026-10-18
 
 ### Changed

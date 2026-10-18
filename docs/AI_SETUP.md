@@ -82,7 +82,7 @@ $MI = "$env:LOCALAPPDATA\Programs\magicinput\magicinput.exe"
 
 Without a plan, build the Windows version from source as described in [CONTRIBUTING.md](../CONTRIBUTING.md) (on a Mac, `./scripts/package-windows.sh` builds it into `dist/windows`), copy that folder to the PC, set `$dir` to it, and run the `Start-Process` line above.
 
-`Start-Process ... -Verb RunAs` shows an administrator prompt: tell the person to click **Yes**. (If your PowerShell already runs as administrator, `& "$dir\magicinput.exe" install` is enough.) The installer copies MagicInput to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every login, adds a Start menu entry and allows it through the firewall on private networks.
+`Start-Process ... -Verb RunAs` shows an administrator prompt: tell the person to click **Yes**. (If your PowerShell already runs as administrator, `& "$dir\magicinput.exe" install` is enough.) The installer copies MagicInput to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every login, adds a Start menu entry and allows it through the firewall on private networks. To update, run the same lines again: `install` from the new download replaces the installed copy and restarts MagicInput.
 
 ## 3. First or second computer?
 

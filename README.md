@@ -65,7 +65,7 @@ Download `MagicInput-macOS.zip` from your download page, unzip, and move **Magic
 
 Download `MagicInput-Windows.zip` from your download page, unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
-**Updating:** unzip the new version, open PowerShell in that folder and run `Start-Process .\magicinput.exe -ArgumentList install -Verb RunAs`. It replaces the installed copy and restarts MagicInput.
+**Updating:** unzip the new version and open **magicinput-app.exe** from it. After the administrator prompt it replaces the installed copy, restarts MagicInput and opens the new panel.
 
 > [!NOTE]
 > The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the [release](https://github.com/betoxf/Magicinput/releases/latest).
