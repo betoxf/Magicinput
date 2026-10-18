@@ -4,6 +4,11 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ## Unreleased
 
+### Added
+
+- Installers: a signed and notarized Mac disk image (drag MagicInput to Applications) and a Windows setup wizard that installs, updates and starts MagicInput, opens it when done, and adds an uninstaller to Settings → Apps (`/S` installs silently). They're the paid downloads at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput).
+- Homebrew is back: `brew install --cask betoxf/tap/magicinput` installs MagicInput on a Mac for free.
+
 ### Changed
 
 - Updating on Windows: open `magicinput-app.exe` from the new download. After the administrator prompt it replaces the installed copy, restarts MagicInput and opens the new panel, even if the old panel is still open. (Before, it just opened the old panel and kept the old version running.)

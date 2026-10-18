@@ -55,20 +55,25 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 
 ## Installation
 
-**Get the ready-made app at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per device per month, $96 per device per year, or $199 once for a Mac and a PC ([pricing](PRICING.md)). Prefer not to pay? It's open source: [build it yourself](#build-from-source) for free.
+### Free
 
-### macOS
+**Mac, with Homebrew:**
 
-Download `MagicInput-macOS.zip` from your download page, unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
+```bash
+brew install --cask betoxf/tap/magicinput
+```
 
-### Windows
+**Any computer:** MagicInput is open source, so you can [build it yourself](#build-from-source).
 
-Download `MagicInput-Windows.zip` from your download page, unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
+### Ready-made installers
 
-**Updating:** unzip the new version and open **magicinput-app.exe** from it. After the administrator prompt it replaces the installed copy, restarts MagicInput and opens the new panel.
+**Get the signed Mac disk image and the Windows setup at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per device per month, $96 per device per year, or $199 once for a Mac and a PC ([pricing](PRICING.md)).
+
+- **macOS:** open `MagicInput.dmg` and drag **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
+- **Windows:** run `MagicInput-Setup.exe` and click **Install**. It installs MagicInput for you, starts it at login, allows it through the firewall on private networks and adds it to the Start menu and to Settings → Apps. To update, run the new setup; your settings are kept.
 
 > [!NOTE]
-> The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the [release](https://github.com/betoxf/Magicinput/releases/latest).
+> The Windows setup isn't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check every download against `SHA256SUMS.txt` in the [release](https://github.com/betoxf/Magicinput/releases/latest).
 
 ### Requirements
 
@@ -195,6 +200,8 @@ src/
 assets/            icons and brand masters
 images/            README images (sources in docs/media-src)
 scripts/           bundle, package and release scripts
+installer/         Mac disk image and Windows setup (NSIS) definitions
+Casks/             Homebrew cask
 docs/              architecture, releasing, release notes
 ```
 
