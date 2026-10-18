@@ -1,9 +1,9 @@
 [package]
 name = "magicinput"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Share one keyboard and mouse between a Mac and a Windows PC"
-license = "MIT"
+license = "GPL-3.0-only"
 repository = "https://github.com/betoxf/Magicinput"
 keywords = ["kvm", "keyboard", "mouse", "macos", "windows"]
 categories = ["command-line-utilities"]

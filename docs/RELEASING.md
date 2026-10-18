@@ -1,6 +1,6 @@
 # Releasing MagicInput
 
-Releases are built on a Mac with a Developer ID certificate, an App Store Connect API key for notarization, `gh`, and `mingw-w64`.
+Releases are built on a Mac with a Developer ID certificate, an App Store Connect API key for notarization, `gh`, `mingw-w64`, and `wrangler` logged in to the Cloudflare account that holds the download bucket.
 
 ## 1. Prepare
 
@@ -15,17 +15,12 @@ Releases are built on a Mac with a Developer ID certificate, an App Store Connec
 ./scripts/release.sh X.Y.Z
 ```
 
-The script runs the tests, builds a universal `MagicInput.app`, signs it, notarizes and staples it, builds the Windows package, writes `SHA256SUMS.txt`, tags `vX.Y.Z` and publishes the GitHub release with both zips.
+The script runs the tests, builds a universal `MagicInput.app`, signs it, notarizes and staples it, builds the Windows package and writes `SHA256SUMS.txt`. It uploads both zips to the private R2 bucket `magicinput-releases` (override with `MAGICINPUT_BUCKET`) under `vX.Y.Z/`, points `latest.json` at them, so paying customers get them from bullfighterstudio.com, and then tags `vX.Y.Z` and publishes the GitHub release with the notes and `SHA256SUMS.txt` (no installers).
 
 The notarization key is read from `MAGICINPUT_NOTARY_KEY`, `MAGICINPUT_NOTARY_KEY_ID` and `MAGICINPUT_NOTARY_ISSUER`, or from the `asc` CLI configuration. Never commit keys.
 
-## 3. Homebrew
+## 3. Check
 
-Update `version` and `sha256` (from `SHA256SUMS.txt`, i.e. the published artifact) in `Casks/magicinput.rb` here and in `betoxf/homebrew-tap`. Then check:
-
-```bash
-brew update && brew upgrade --cask magicinput   # or install
-brew style Casks/magicinput.rb
-```
+Open a download page from a test purchase (or a 100%-off promotion code) and confirm both downloads match `SHA256SUMS.txt`.
 
 Never move a tag after its release is published.

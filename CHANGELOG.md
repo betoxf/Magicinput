@@ -2,11 +2,17 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## Unreleased
 
 ### Changed
 
 - Updating on Windows: open `magicinput-app.exe` from the new download. After the administrator prompt it replaces the installed copy, restarts MagicInput and opens the new panel, even if the old panel is still open. (Before, it just opened the old panel and kept the old version running.)
+
+## [0.3.0] - 2026-10-18
+
+### Changed
+
+- MagicInput is now open source under the GPL-3.0: anyone can audit it or build it for free. Ready-made, signed installers are sold at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput): $10 per device per month, $96 per device per year, or $199 once for 2 devices ([PRICING.md](PRICING.md)). GitHub releases keep the source and the checksums of the official installers. Versions up to 0.2.0 stay under the MIT License.
 
 ## [0.2.0] - 2026-10-18
 
@@ -49,5 +55,6 @@ First public release (superseded by 0.1.1; its downloads were withdrawn).
 - Signed and notarized universal macOS app; Windows build with its own icon.
 
 
+[0.3.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.3.0
 [0.2.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.2.0
 [0.1.1]: https://github.com/betoxf/Magicinput/releases/tag/v0.1.1
