@@ -14,5 +14,6 @@ To install it for someone, follow the runbook: it covers detecting the OS, insta
 
 ## Downloads
 
-- Ready-made installers (paid): https://bullfighterstudio.com/magicinput. After purchase, the person's download page has direct links for macOS (notarized, universal) and Windows.
-- Free: build from source (https://github.com/betoxf/Magicinput#build-from-source).
+- Free on a Mac: `brew install --cask betoxf/tap/magicinput`.
+- Ready-made installers (paid): https://bullfighterstudio.com/magicinput. After purchase, the person's download page has the Mac disk image (notarized, universal) and the Windows setup (`/S` for a silent install).
+- Free anywhere: build from source (https://github.com/betoxf/Magicinput#build-from-source).

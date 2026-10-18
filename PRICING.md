@@ -1,6 +1,6 @@
 # Pricing and licensing
 
-MagicInput is open source under the [GPL-3.0](LICENSE). Anyone can read the code, have it audited, or build it themselves for free. The ready-made, signed installers are paid.
+MagicInput is open source under the [GPL-3.0](LICENSE). Anyone can read the code, have it audited, or build it themselves for free, and on a Mac it's free with Homebrew. The ready-made installers (a signed Mac disk image and a Windows setup) are paid.
 
 | Plan | Price |
 | --- | --- |
@@ -8,13 +8,14 @@ MagicInput is open source under the [GPL-3.0](LICENSE). Anyone can read the code
 | Yearly | $96 per device per year (20% off) |
 | Lifetime | $199 once, for 2 devices (a Mac and a PC) |
 
-A device is one computer running MagicInput: a Mac and a PC are two. Every plan includes the signed and notarized Mac app, the Windows app and all updates (for as long as the plan is active, or forever with Lifetime).
+A device is one computer running MagicInput: a Mac and a PC are two. Every plan includes the signed and notarized Mac disk image, the Windows setup and all updates (for as long as the plan is active, or forever with Lifetime).
 
 **Get it at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput).** After paying you land on your download page. Bookmark it: it always has the latest version.
 
-## Build it yourself, for free
+## Free options
 
-Everything needed is in this repository; see [Build from source](README.md#build-from-source). Copies you build yourself are yours under the GPL-3.0 and need no plan.
+- **Mac:** `brew install --cask betoxf/tap/magicinput`.
+- **Any computer:** build it from this repository; see [Build from source](README.md#build-from-source). Copies you build yourself are yours under the GPL-3.0 and need no plan.
 
 ## Check it yourself
 
