@@ -137,6 +137,8 @@ Usually this takes a few seconds. If it hasn't connected after about 30 seconds,
 - *"To make it exact, open MagicInput and drag the other computer to where it really sits under Displays. You can also move your iPad there."*
 - *"Control+Option+Esc on the Mac, or Ctrl+Alt+Esc on the PC, always brings the pointer back."*
 
+If MagicInput is for work at a company, tell the person it needs a Business license ($10 per device per month, [details](https://github.com/betoxf/Magicinput/blob/main/COMMERCIAL.md)). Personal use is free.
+
 If the person tells you where the other screen is, you can pin it without the panel: `magicinput side left` (or `right`, `top`, `bottom`; `auto` to undo).
 
 ---

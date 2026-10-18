@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/macOS-13%2B-111827" alt="macOS 13 or newer">
     <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-111827" alt="Windows 10 or 11">
     <img src="https://img.shields.io/badge/Rust-2024-B7410E" alt="Rust">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2563EB" alt="MIT license"></a>
+    <a href="COMMERCIAL.md"><img src="https://img.shields.io/badge/personal%20use-free-2563EB" alt="Free for personal use"></a>
   </p>
 
   <p>
@@ -21,6 +21,7 @@
     <a href="#quick-start">Quick start</a> ·
     <a href="#set-it-up-with-an-ai-assistant">Set up with AI</a> ·
     <a href="#how-it-works">How it works</a> ·
+    <a href="#pricing">Pricing</a> ·
     <a href="CHANGELOG.md">Changelog</a> ·
     <a href="docs/ARCHITECTURE.md">Architecture</a> ·
     <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -71,6 +72,10 @@ Download `MagicInput-Windows.zip` from the [latest release](https://github.com/b
 
 > [!NOTE]
 > The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the release.
+
+### Pricing
+
+MagicInput is **free for personal use**. Companies, and anyone using it for commercial work, need a **Business license: $10 per device per month** ([buy](https://buy.stripe.com/8x29AUdj3cmq9eoe29d3i01), [details](COMMERCIAL.md)). Schools, charities, public research and government organizations use it free.
 
 ### Requirements
 
@@ -220,8 +225,8 @@ Issues and focused pull requests are welcome. Start with [CONTRIBUTING.md](CONTR
 - Apple's Universal Control, for showing how effortless it should feel
 - [snow](https://github.com/mcginty/snow), [tao and wry](https://github.com/tauri-apps), [mdns-sd](https://github.com/keepsimple1/mdns-sd) and the other crates this builds on
 
-MagicInput is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
+MagicInput is an independent project and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
 
 ## License
 
-MagicInput is available under the [MIT License](LICENSE).
+The source code is available under the [PolyForm Noncommercial License 1.0.0](LICENSE): free for personal and other noncommercial use. Commercial use needs a [Business license](COMMERCIAL.md). Versions up to 0.2.0 were released under the MIT License and remain available under it.

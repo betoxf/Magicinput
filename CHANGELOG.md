@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- New license: MagicInput is free for personal and other noncommercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE). Companies, and anyone using it for commercial work, need a Business license ($10 per device per month, see [COMMERCIAL.md](COMMERCIAL.md)). Versions up to 0.2.0 stay under the MIT License.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added

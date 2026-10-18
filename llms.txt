@@ -10,6 +10,7 @@ To install it for someone, follow the runbook: it covers detecting the OS, insta
 - [README](https://github.com/betoxf/Magicinput/blob/main/README.md): features, install, quick start, controls, tips
 - [Architecture](https://github.com/betoxf/Magicinput/blob/main/docs/ARCHITECTURE.md): processes, protocol, security model
 - [Security](https://github.com/betoxf/Magicinput/blob/main/SECURITY.md): security boundaries and reporting
+- [Licensing and pricing](https://github.com/betoxf/Magicinput/blob/main/COMMERCIAL.md): free for personal use; companies need a Business license ($10 per device per month)
 
 ## Downloads
 

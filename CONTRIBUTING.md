@@ -8,6 +8,10 @@ Thanks for helping. Issues and focused pull requests are welcome.
 - Keep pull requests small and about one thing.
 - Never include pairing codes, network addresses you don't want public, or screenshots with personal content.
 
+## Licensing of contributions
+
+MagicInput is published under the [PolyForm Noncommercial License](LICENSE) and also sold under [Business licenses](COMMERCIAL.md). By submitting a contribution you confirm you have the right to contribute it, and you agree that it may be distributed under both.
+
 ## Local setup
 
 ```bash
