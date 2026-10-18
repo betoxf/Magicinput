@@ -10,7 +10,7 @@ Thanks for helping. Issues and focused pull requests are welcome.
 
 ## Licensing of contributions
 
-MagicInput is published under the [PolyForm Noncommercial License](LICENSE) and also sold under [Business licenses](COMMERCIAL.md). By submitting a contribution you confirm you have the right to contribute it, and you agree that it may be distributed under both.
+MagicInput is open source under the [GPL-3.0](LICENSE), and bullfighterstudio also sells official builds ([PRICING.md](PRICING.md)). By submitting a contribution you confirm you have the right to contribute it, and you agree that it's licensed under the GPL-3.0 and that bullfighterstudio may also distribute it in its official builds under its own terms.
 
 ## Local setup
 

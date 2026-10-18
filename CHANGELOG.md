@@ -6,7 +6,7 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ### Changed
 
-- New license: MagicInput is free for personal and other noncommercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE). Companies, and anyone using it for commercial work, need a Business license ($10 per device per month, see [COMMERCIAL.md](COMMERCIAL.md)). Versions up to 0.2.0 stay under the MIT License.
+- MagicInput is now open source under the GPL-3.0: anyone can audit it or build it for free. Ready-made, signed installers are sold at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput): $10 per device per month, $96 per device per year, or $199 once for 2 devices ([PRICING.md](PRICING.md)). GitHub releases keep the source and the checksums of the official installers. Versions up to 0.2.0 stay under the MIT License.
 
 ## [0.2.0] - 2026-10-18
 

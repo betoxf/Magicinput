@@ -22,20 +22,28 @@ Both computers must be on the **same local network** (same Wi-Fi or wired router
 
 ## 2. Install
 
+The ready-made installers are paid ([pricing](../PRICING.md)); the source code is free (GPL-3.0). Ask the person: *"Do you have a MagicInput plan? If so, paste the link to your download page. It starts with https://bullfighterstudio.com/magicinput/download?session_id="*. Use the `session_id` value from that link below. Without a plan, build it from source (free).
+
 ### macOS (13 Ventura or newer)
 
-With Homebrew (check with `command -v brew`):
+With a plan:
 
 ```bash
-brew install --cask betoxf/tap/magicinput
-```
-
-Without Homebrew:
-
-```bash
-curl -fsSL -o /tmp/MagicInput-macOS.zip https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-macOS.zip
+SESSION=cs_...   # the session_id from their download page link
+curl -fsSL -o /tmp/MagicInput-macOS.zip "https://bullfighterstudio.com/api/magicinput/download?os=mac&session_id=$SESSION"
 ditto -x -k /tmp/MagicInput-macOS.zip /Applications
 ```
+
+Without a plan, build it (a few minutes; needs the Xcode Command Line Tools):
+
+```bash
+xcode-select -p >/dev/null || xcode-select --install
+command -v cargo >/dev/null || curl -fsSL https://sh.rustup.rs | sh -s -- -y; . "$HOME/.cargo/env"
+git clone https://github.com/betoxf/Magicinput.git ~/Magicinput && cd ~/Magicinput
+./scripts/bundle-mac.sh && ditto dist/MagicInput.app /Applications/MagicInput.app
+```
+
+A build without a Developer ID certificate is signed ad hoc, so macOS asks for the permissions again after each rebuild.
 
 Then start it at login and right away:
 
@@ -59,17 +67,20 @@ until "$MI" status --json | grep -q '"service": "running"'; do sleep 3; done; ec
 
 ### Windows (10 or 11, 64-bit)
 
-In PowerShell:
+With a plan, in PowerShell:
 
 ```powershell
+$session = "cs_..."   # the session_id from their download page link
 $zip = "$env:TEMP\MagicInput-Windows.zip"; $dir = "$env:TEMP\MagicInput"
-Invoke-WebRequest https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-Windows.zip -OutFile $zip
+Invoke-WebRequest "https://bullfighterstudio.com/api/magicinput/download?os=windows&session_id=$session" -OutFile $zip
 Expand-Archive $zip -DestinationPath $dir -Force
 Get-ChildItem $dir | Unblock-File
 Start-Process "$dir\magicinput.exe" -ArgumentList install -Verb RunAs -Wait
 $MI = "$env:LOCALAPPDATA\Programs\magicinput\magicinput.exe"
 & $MI status
 ```
+
+Without a plan, build the Windows version from source as described in [CONTRIBUTING.md](../CONTRIBUTING.md) (on a Mac, `./scripts/package-windows.sh` builds it into `dist/windows`), copy that folder to the PC, set `$dir` to it, and run the `Start-Process` line above.
 
 `Start-Process ... -Verb RunAs` shows an administrator prompt: tell the person to click **Yes**. (If your PowerShell already runs as administrator, `& "$dir\magicinput.exe" install` is enough.) The installer copies MagicInput to `%LOCALAPPDATA%\Programs\magicinput`, starts it now and at every login, adds a Start menu entry and allows it through the firewall on private networks.
 
@@ -136,8 +147,6 @@ Usually this takes a few seconds. If it hasn't connected after about 30 seconds,
 - *"Your keyboard also follows your last click: click into a field with the other computer's own mouse and keep typing on this keyboard."*
 - *"To make it exact, open MagicInput and drag the other computer to where it really sits under Displays. You can also move your iPad there."*
 - *"Control+Option+Esc on the Mac, or Ctrl+Alt+Esc on the PC, always brings the pointer back."*
-
-If MagicInput is for work at a company, tell the person it needs a Business license ($10 per device per month, [details](https://github.com/betoxf/Magicinput/blob/main/COMMERCIAL.md)). Personal use is free.
 
 If the person tells you where the other screen is, you can pin it without the panel: `magicinput side left` (or `right`, `top`, `bottom`; `auto` to undo).
 

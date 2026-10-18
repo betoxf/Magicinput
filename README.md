@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/macOS-13%2B-111827" alt="macOS 13 or newer">
     <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-111827" alt="Windows 10 or 11">
     <img src="https://img.shields.io/badge/Rust-2024-B7410E" alt="Rust">
-    <a href="COMMERCIAL.md"><img src="https://img.shields.io/badge/personal%20use-free-2563EB" alt="Free for personal use"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2563EB" alt="GPL-3.0 license"></a>
   </p>
 
   <p>
@@ -21,7 +21,7 @@
     <a href="#quick-start">Quick start</a> ·
     <a href="#set-it-up-with-an-ai-assistant">Set up with AI</a> ·
     <a href="#how-it-works">How it works</a> ·
-    <a href="#pricing">Pricing</a> ·
+    <a href="PRICING.md">Pricing</a> ·
     <a href="CHANGELOG.md">Changelog</a> ·
     <a href="docs/ARCHITECTURE.md">Architecture</a> ·
     <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -51,31 +51,24 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 | Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
 | Smooth on Wi-Fi | Late pointer updates are replayed as a quick glide instead of a jump. |
 | Out of the way | Starts at login and runs at about 0.1% CPU. The settings panel only exists while it's open; the menu bar icon is optional. |
+| Open source | GPL-3.0: read every line, have it audited, or build it yourself. |
 
 ## Installation
 
+**Get the ready-made app at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per device per month, $96 per device per year, or $199 once for a Mac and a PC ([pricing](PRICING.md)). Prefer not to pay? It's open source: [build it yourself](#build-from-source) for free.
+
 ### macOS
 
-**Homebrew (recommended)**
-
-```bash
-brew install --cask betoxf/tap/magicinput
-```
-
-**Or download** `MagicInput-macOS.zip` from the [latest release](https://github.com/betoxf/Magicinput/releases/latest), unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
+Download `MagicInput-macOS.zip` from your download page, unzip, and move **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
 
 ### Windows
 
-Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/Magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
+Download `MagicInput-Windows.zip` from your download page, unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
 **Updating:** unzip the new version, open PowerShell in that folder and run `Start-Process .\magicinput.exe -ArgumentList install -Verb RunAs`. It replaces the installed copy and restarts MagicInput.
 
 > [!NOTE]
-> The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the release.
-
-### Pricing
-
-MagicInput is **free for personal use**. Companies, and anyone using it for commercial work, need a **Business license: $10 per device per month** ([buy](https://buy.stripe.com/8x29AUdj3cmq9eoe29d3i01), [details](COMMERCIAL.md)). Schools, charities, public research and government organizations use it free.
+> The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the [release](https://github.com/betoxf/Magicinput/releases/latest).
 
 ### Requirements
 
@@ -157,6 +150,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the details.
 - MagicInput has no servers, no account and no telemetry.
 - Nothing is accepted from outside your local network.
 - The macOS permissions (Accessibility, Input Monitoring) are what any keyboard/mouse sharing tool needs to see and send input.
+- It's open source, so you or your security team can audit exactly what it does, and check official downloads against the published checksums ([how](PRICING.md#check-it-yourself)).
 
 Report suspected vulnerabilities privately as described in the [security policy](SECURITY.md).
 
@@ -177,7 +171,7 @@ The apps are all you need, but everything is scriptable. On a Mac the command is
 
 ## Build from source
 
-You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
+Free, and the same code as the paid installers. You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
 
 ```bash
 git clone https://github.com/betoxf/Magicinput.git
@@ -201,7 +195,6 @@ src/
 assets/            icons and brand masters
 images/            README images (sources in docs/media-src)
 scripts/           bundle, package and release scripts
-Casks/             Homebrew cask
 docs/              architecture, releasing, release notes
 ```
 
@@ -211,7 +204,8 @@ docs/              architecture, releasing, release notes
 | --- | --- |
 | [Architecture](docs/ARCHITECTURE.md) | Processes, protocol, security model and files. |
 | [Contributing](CONTRIBUTING.md) | Local setup, change standards and validation. |
-| [Releasing](docs/RELEASING.md) | Versioning, notarization, release and Homebrew checklist. |
+| [Releasing](docs/RELEASING.md) | Versioning, notarization and release checklist. |
+| [Pricing](PRICING.md) | Plans, building it yourself, verifying downloads, licenses. |
 | [Security](SECURITY.md) | Supported versions and private reporting. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community expectations. |
 
@@ -225,8 +219,8 @@ Issues and focused pull requests are welcome. Start with [CONTRIBUTING.md](CONTR
 - Apple's Universal Control, for showing how effortless it should feel
 - [snow](https://github.com/mcginty/snow), [tao and wry](https://github.com/tauri-apps), [mdns-sd](https://github.com/keepsimple1/mdns-sd) and the other crates this builds on
 
-MagicInput is an independent project and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
+MagicInput is an independent open-source project by bullfighterstudio and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
 
 ## License
 
-The source code is available under the [PolyForm Noncommercial License 1.0.0](LICENSE): free for personal and other noncommercial use. Commercial use needs a [Business license](COMMERCIAL.md). Versions up to 0.2.0 were released under the MIT License and remain available under it.
+Copyright © 2026 bullfighterstudio. MagicInput is free software under the [GNU General Public License v3.0](LICENSE). Official installers are sold at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput) ([pricing and licensing](PRICING.md)). Versions up to 0.2.0 were released under the MIT License and stay under it.
