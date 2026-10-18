@@ -124,6 +124,17 @@ pub fn main_with(settings: fn(bool)) {
     }
 }
 
+/// Run the background service (what `magicinput run` does).
+pub fn run_service() {
+    run(Config::load());
+}
+
+/// Installed from the Microsoft Store.
+#[cfg(windows)]
+pub fn packaged() -> bool {
+    service::packaged()
+}
+
 fn run(mut cfg: Config) {
     let mut logger = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
     logger.format_target(false);

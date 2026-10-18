@@ -13,5 +13,9 @@ r how.html 1100,440 images/how-it-works.png
 r "how.html?dark" 1100,440 images/how-it-works-dark.png
 r pairing.html 520,500 images/pairing.png
 r logo.html 760,200 assets/brand/magicinput-logo.png
+# Microsoft Store screenshots (1920x1080, scale 1):
+for s in panel pairing how; do "$C" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files \
+  --force-device-scale-factor=1 --window-size=1920,1080 --virtual-time-budget=5000 \
+  --screenshot=docs/store/screenshot-$s.png "file://$PWD/docs/media-src/store.html?shot=$s"; done
 r "logo.html?dark" 760,200 assets/brand/magicinput-logo-dark.png
 ```

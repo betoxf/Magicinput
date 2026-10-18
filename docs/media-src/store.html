@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  /* Microsoft Store screenshots (1920x1080). ?shot=panel | pairing | how */
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font-family: "Segoe UI Variable", "Segoe UI", -apple-system, system-ui, sans-serif; }
+  body { background: radial-gradient(1400px 900px at 12% 8%, #e4e4e7 0%, transparent 60%), radial-gradient(1100px 800px at 90% 90%, #d4d4d8 0%, transparent 60%), linear-gradient(135deg, #f4f4f5, #fafafa 50%, #e9e9ec); position: relative; color: #0a0a0a; }
+  .taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: rgba(243,243,243,.85); backdrop-filter: blur(30px); border-top: 1px solid rgba(0,0,0,.06); display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .taskbar i { width: 28px; height: 28px; border-radius: 7px; background: rgba(0,0,0,.08); display: block; }
+  .taskbar .tray { position: absolute; right: 18px; display: flex; gap: 14px; align-items: center; font-size: 12px; color: #222; }
+  .taskbar .tray img { width: 18px; height: 18px; border-radius: 4px; }
+  .caption { position: absolute; left: 140px; top: 270px; width: 760px; }
+  .caption h2 { font-size: 76px; letter-spacing: -.035em; line-height: 1.02; margin: 0 0 26px; font-weight: 700; }
+  .caption p { font-size: 28px; line-height: 1.45; margin: 0; color: #52525b; }
+  .glass { position: absolute; right: 90px; bottom: 64px; width: 360px; height: 560px; border-radius: 12px; overflow: hidden; transform: scale(1.45); transform-origin: bottom right;
+    background: rgba(246,246,248,.8); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 30px 80px rgba(0,0,0,.18), 0 0 0 .5px rgba(0,0,0,.12); }
+  iframe { border: 0; width: 360px; height: 560px; background: transparent; }
+  .illustration { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); width: 1500px; border-radius: 18px; }
+  body.wide .caption { left: 0; right: 0; top: 110px; width: auto; text-align: center; }
+  body.wide .caption p { max-width: 1100px; margin: 0 auto; }
+</style></head><body>
+<div class="caption" id="caption"></div>
+<div class="taskbar"><i></i><i></i><i></i><i></i><i></i><span class="tray"><img src="../../assets/brand/magicinput-icon.png" alt=""><span>9:41 AM</span></span></div>
+<script>
+  const shot = new URLSearchParams(location.search).get('shot') || 'panel';
+  const cap = document.getElementById('caption');
+  if (shot === 'panel') {
+    cap.innerHTML = '<h2>One keyboard and mouse for your PC and your Mac.</h2><p>Push the pointer off the edge of the screen and keep going on the other computer. Type, click, scroll, copy and paste.</p>';
+    document.body.insertAdjacentHTML('beforeend', '<div class="glass"><iframe id="f" src="panel-demo.html?windows"></iframe></div>');
+    const f = document.getElementById('f');
+    f.onload = () => setTimeout(() => { const h = f.contentDocument.getElementById('panel').offsetHeight; f.style.height = h + 'px'; document.querySelector('.glass').style.height = h + 'px'; }, 300);
+  } else if (shot === 'pairing') {
+    cap.innerHTML = '<h2>Paired in seconds.</h2><p>MagicInput starts with Windows and finds your Mac on your network by itself. Type its short code once and you&rsquo;re connected. No account, no cloud.</p>';
+    document.body.insertAdjacentHTML('beforeend', '<div class="glass"><iframe id="f" src="panel-demo.html?windows&pairing"></iframe></div>');
+    const f = document.getElementById('f');
+    f.onload = () => setTimeout(() => { const h = f.contentDocument.getElementById('panel').offsetHeight; f.style.height = h + 'px'; document.querySelector('.glass').style.height = h + 'px'; }, 300);
+  } else {
+    document.body.classList.add('wide');
+    cap.innerHTML = '<h2>Feels like one computer.</h2><p>Arrange your screens like in Settings, iPad included. Your keyboard follows your clicks, and copied text comes along.</p>';
+    document.body.insertAdjacentHTML('beforeend', '<img class="illustration" src="../../images/how-it-works.png">');
+  }
+</script>
+</body></html>

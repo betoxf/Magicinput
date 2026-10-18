@@ -1786,6 +1786,7 @@ dependencies = [
  "toml 1.1.8+spec-1.1.0",
  "tray-icon",
  "window-vibrancy",
+ "windows",
  "windows-sys 0.61.2",
  "wry",
 ]
