@@ -67,6 +67,8 @@ brew install --cask betoxf/tap/magicinput
 
 Download `MagicInput-Windows.zip` from the [latest release](https://github.com/betoxf/Magicinput/releases/latest), unzip it anywhere, and open **magicinput-app.exe**. Windows asks once for administrator rights: MagicInput installs itself, starts at login and adds a Start menu entry. (Admin rights also let it control apps that run as administrator.)
 
+**Updating:** unzip the new version, open PowerShell in that folder and run `Start-Process .\magicinput.exe -ArgumentList install -Verb RunAs`. It replaces the installed copy and restarts MagicInput.
+
 > [!NOTE]
 > The Windows files aren't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check the download against `SHA256SUMS.txt` in the release.
 
