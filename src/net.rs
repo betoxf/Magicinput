@@ -245,10 +245,10 @@ impl Net {
             screens: crate::platform::logical_displays(),
             layout: cfg.layout.clone(),
             layout_time: cfg.layout_time,
-            access: self.core.local_access(),
+            access: true,
         };
         write_msg(&mut stream, &mut noise, &hello)?;
-        let Msg::Hello { id, name, os, version, peer_side, screens, layout, layout_time, access } = read_msg(&mut stream, &mut noise)? else {
+        let Msg::Hello { id, name, os, version, peer_side, screens, layout, layout_time, .. } = read_msg(&mut stream, &mut noise)? else {
             return Err("expected hello".into());
         };
         if version != PROTOCOL_VERSION {
@@ -280,7 +280,7 @@ impl Net {
             });
         }
         info!("Secure connection with {name} ({})", stream.peer_addr()?);
-        self.core.on_connect(Peer { name, os, side_hint: peer_side, screens, layout, layout_time, access });
+        self.core.on_connect(Peer { name, os, side_hint: peer_side, screens, layout, layout_time });
 
         let r = (|| -> Res<()> {
             loop {

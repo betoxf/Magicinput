@@ -22,7 +22,7 @@ Both computers must be on the **same local network** (same Wi-Fi or wired router
 
 ## 2. Install
 
-On a Mac, Homebrew installs MagicInput for free. The ready-made Windows setup and Mac disk image are paid ([pricing](../PRICING.md)), and the source code is free (GPL-3.0). For Windows, ask the person: *"Do you have a MagicInput plan? If so, paste the link to your download page. It starts with https://bullfighterstudio.com/magicinput/download?session_id="*. Use the `session_id` value from that link below. Without a plan, build it from source.
+MagicInput is free for personal use, with every feature; a business needs a license (step 5).
 
 ### macOS (13 Ventura or newer)
 
@@ -32,16 +32,15 @@ With Homebrew (check with `command -v brew`):
 brew install --cask betoxf/tap/magicinput
 ```
 
-With a plan (the disk image):
+Without Homebrew (the disk image):
 
 ```bash
-SESSION=cs_...   # the session_id from their download page link
-curl -fsSL -o /tmp/MagicInput.dmg "https://bullfighterstudio.com/api/magicinput/download?os=mac&session_id=$SESSION"
+curl -fsSL -o /tmp/MagicInput.dmg https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput.dmg
 hdiutil attach -nobrowse -quiet -mountpoint /tmp/MagicInput-dmg /tmp/MagicInput.dmg
 ditto /tmp/MagicInput-dmg/MagicInput.app /Applications/MagicInput.app && hdiutil detach -quiet /tmp/MagicInput-dmg
 ```
 
-Otherwise, build it (a few minutes; needs the Xcode Command Line Tools):
+Or build it from source (a few minutes; needs the Xcode Command Line Tools):
 
 ```bash
 xcode-select -p >/dev/null || xcode-select --install
@@ -74,19 +73,18 @@ until "$MI" status --json | grep -q '"service": "running"'; do sleep 3; done; ec
 
 ### Windows (10 or 11, 64-bit)
 
-With a plan, in PowerShell (the setup runs silently with `/S`):
+In PowerShell (the setup runs silently with `/S`):
 
 ```powershell
-$session = "cs_..."   # the session_id from their download page link
 $setup = "$env:TEMP\MagicInput-Setup.exe"
-Invoke-WebRequest "https://bullfighterstudio.com/api/magicinput/download?os=windows&session_id=$session" -OutFile $setup
+Invoke-WebRequest https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-Setup.exe -OutFile $setup
 Unblock-File $setup
 Start-Process $setup -ArgumentList /S -Verb RunAs -Wait
 $MI = "$env:LOCALAPPDATA\Programs\magicinput\magicinput.exe"
 & $MI status
 ```
 
-Without a plan, build the Windows version from source as described in [CONTRIBUTING.md](../CONTRIBUTING.md) (on a Mac, `./scripts/package-windows.sh` builds it into `dist/windows`), copy that folder to the PC and, in it, run `Start-Process .\magicinput.exe -ArgumentList install -Verb RunAs -Wait`.
+To build the Windows version from source instead, follow [CONTRIBUTING.md](../CONTRIBUTING.md) (on a Mac, `./scripts/package-windows.sh` builds it into `dist/windows`), copy that folder to the PC and, in it, run `Start-Process .\magicinput.exe -ArgumentList install -Verb RunAs -Wait`.
 
 `Start-Process ... -Verb RunAs` shows an administrator prompt: tell the person to click **Yes**. Either way MagicInput ends up in `%LOCALAPPDATA%\Programs\magicinput`, starts now and at every login, gets a Start menu entry and is allowed through the firewall on private networks. To update, run the same lines again with the new version; settings are kept.
 
@@ -114,7 +112,7 @@ The output looks like this:
 | --- | --- | --- |
 | `first` | No other computer running MagicInput was found. | Give the person this computer's `pairing_code` and tell them to install MagicInput on the other computer (they can paste the prompt from the README into an assistant there). On the other computer, pairing is `magicinput pair <this code>`. |
 | `second` | Another computer runs MagicInput (`nearby`) but with a different code. | Get that computer's code and pair this one with it (below). |
-| `paired` | Already connected (`connected_to`). | Skip to step 5 (Premium) or 6. |
+| `paired` | Already connected (`connected_to`). | Skip to step 5. |
 
 `next_step` always says the next thing to do in plain words. `service` is `running`, `waiting_for_permission` (Mac permissions, step 2) or `not_running` (run `install` again).
 
@@ -133,15 +131,15 @@ Then, on this computer:
 
 The running service picks up the new code within a second and reconnects; no restart needed.
 
-## 5. Premium (optional)
+## 5. Business license (only for business use)
 
-Every computer gets a 14-day free trial; after that, MagicInput shares as long as one connected computer has Premium. If the person has a license key (from their download page at bullfighterstudio.com/magicinput), activate it on **one** computer:
+MagicInput is free for personal use and nothing is locked. If it's for a business, it needs a license (bullfighterstudio.com/magicinput, one license covers all the business's computers). If the person has the license key from their download page, activate it on each computer:
 
 ```bash
 "$MI" license <KEY>          # PowerShell: & $MI license <KEY>
 ```
 
-`magicinput status` shows the Premium or trial state. Without a key, tell the person: *"You have a 14-day free trial. To keep using MagicInput after that, get Premium for one of your computers at bullfighterstudio.com/magicinput."*
+`magicinput status` shows the license. If it's for work and they have no license, tell them: *"MagicInput is free for personal use; for business use it needs a license from bullfighterstudio.com/magicinput."*
 
 ## 6. Check the connection
 

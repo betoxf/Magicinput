@@ -81,7 +81,7 @@ pub enum Msg {
         screens: Vec<Rect>,
         layout: Option<Layout>,
         layout_time: u64,
-        /// The sender has Premium or is still in its free trial (see `license`).
+        /// Always true: MagicInput 0.4 had a trial and needed this to connect.
         access: bool,
     },
     /// The arrangement changed on the sender.
@@ -100,7 +100,7 @@ pub enum Msg {
     Clipboard { text: String },
     /// The sender was just clicked with its own mouse or trackpad: send your keyboard here.
     Focus,
-    /// The sender's Premium or trial status changed.
+    /// Only sent by MagicInput 0.4 (its trial status); ignored.
     Access { ok: bool },
     Ping,
 }

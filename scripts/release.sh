@@ -2,8 +2,7 @@
 # Builds, notarizes and publishes a release: ./scripts/release.sh 0.1.0
 # Needs: Developer ID certificate, App Store Connect API key (MAGICINPUT_NOTARY_KEY,
 # MAGICINPUT_NOTARY_KEY_ID, MAGICINPUT_NOTARY_ISSUER, or the asc CLI config), gh, mingw-w64,
-# makensis, uv (for dmgbuild), and wrangler logged in to the Cloudflare account with the download
-# bucket.
+# makensis and uv (for dmgbuild).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="${1:?usage: release.sh X.Y.Z}"
@@ -32,7 +31,7 @@ xcrun notarytool submit dist/notarize.zip --key "$KEY" --key-id "$KEY_ID" --issu
 xcrun stapler staple dist/MagicInput.app
 rm dist/notarize.zip
 spctl --assess --type execute --verbose dist/MagicInput.app
-# The zip is the free Homebrew download.
+# The zip is the Homebrew download.
 rm -f dist/MagicInput-macOS.zip
 ditto -c -k --keepParent dist/MagicInput.app dist/MagicInput-macOS.zip
 
@@ -51,17 +50,8 @@ LANG=C.UTF-8 makensis -V2 -DVERSION="$VERSION" -DDIST=../../dist/windows -DOUTFI
 
 (cd dist && shasum -a 256 MagicInput.dmg MagicInput-Setup.exe MagicInput-macOS.zip | tee SHA256SUMS.txt)
 
-# The installers go to the paid download store (Cloudflare R2, served by bullfighterstudio.com);
-# the GitHub release has the notes, the Homebrew zip and the checksums.
-BUCKET="${MAGICINPUT_BUCKET:-magicinput-releases}"
-for f in MagicInput.dmg MagicInput-Setup.exe; do
-  wrangler r2 object put "$BUCKET/$TAG/$f" --file "dist/$f" --remote
-done
-printf '{"version":"%s","mac":"%s/MagicInput.dmg","windows":"%s/MagicInput-Setup.exe"}\n' "$VERSION" "$TAG" "$TAG" > dist/latest.json
-wrangler r2 object put "$BUCKET/latest.json" --file dist/latest.json --content-type application/json --remote
-
 git tag -a "$TAG" -m "MagicInput $VERSION"
 git push origin "$TAG"
 gh release create "$TAG" --title "MagicInput $VERSION" --notes-file "docs/releases/$TAG.md" \
-  dist/MagicInput-macOS.zip dist/SHA256SUMS.txt
+  dist/MagicInput.dmg dist/MagicInput-Setup.exe dist/MagicInput-macOS.zip dist/SHA256SUMS.txt
 echo "Released $TAG. Now update the Homebrew cask (docs/RELEASING.md)."

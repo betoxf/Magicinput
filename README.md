@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/macOS-13%2B-111827" alt="macOS 13 or newer">
     <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-111827" alt="Windows 10 or 11">
     <img src="https://img.shields.io/badge/Rust-2024-B7410E" alt="Rust">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2563EB" alt="GPL-3.0 license"></a>
+    <a href="PRICING.md"><img src="https://img.shields.io/badge/personal%20use-free-2563EB" alt="Free for personal use"></a>
   </p>
 
   <p>
@@ -51,28 +51,19 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 | Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
 | Smooth on Wi-Fi | Late pointer updates are replayed as a quick glide instead of a jump. |
 | Out of the way | Starts at login and runs at about 0.1% CPU. The settings panel only exists while it's open; the menu bar icon is optional. |
-| Open source | GPL-3.0: read every line, have it audited, or build it yourself. |
+| Free, with every feature | Free for personal use. The source is public: read every line, have it audited, or build it yourself. |
 
 ## Installation
 
-### Try it free
+MagicInput is free for personal use, with every feature. Using it for a business needs a [business license](PRICING.md).
 
-Every computer gets a 14-day free trial. After that, one Premium license on any of your computers unlocks the computers connected to it.
+- **macOS:** download [`MagicInput.dmg`](https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput.dmg), open it and drag **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel. Or with Homebrew:
 
-**Mac, with Homebrew:**
+  ```bash
+  brew install --cask betoxf/tap/magicinput
+  ```
 
-```bash
-brew install --cask betoxf/tap/magicinput
-```
-
-**Any computer:** MagicInput is open source, so you can [build it yourself](#build-from-source).
-
-### Ready-made installers
-
-**Get Premium, the signed Mac disk image and the Windows setup at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput):** $10 per month, $96 per year, or $199 once, for all your computers ([pricing](PRICING.md)). Paste the license key from your download page into MagicInput (click **Free trial** at the bottom of the panel).
-
-- **macOS:** open `MagicInput.dmg` and drag **MagicInput** to Applications. It is signed and notarized by Apple and runs on Apple silicon and Intel.
-- **Windows:** run `MagicInput-Setup.exe` and click **Install**. It installs MagicInput for you, starts it at login, allows it through the firewall on private networks and adds it to the Start menu and to Settings → Apps. To update, run the new setup; your settings are kept.
+- **Windows:** download [`MagicInput-Setup.exe`](https://github.com/betoxf/Magicinput/releases/latest/download/MagicInput-Setup.exe), run it and click **Install**. It installs MagicInput for you, starts it at login, allows it through the firewall on private networks and adds it to the Start menu and to Settings → Apps. To update, run the new setup; your settings are kept.
 
 > [!NOTE]
 > The Windows setup isn't code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Click **More info → Run anyway**. You can check every download against `SHA256SUMS.txt` in the [release](https://github.com/betoxf/Magicinput/releases/latest).
@@ -157,7 +148,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the details.
 - MagicInput has no servers, no account and no telemetry. With a monthly or yearly license, it fetches a fresh key from bullfighterstudio.com about once a day; that's the only server it talks to.
 - Nothing is accepted from outside your local network.
 - The macOS permissions (Accessibility, Input Monitoring) are what any keyboard/mouse sharing tool needs to see and send input.
-- It's open source, so you or your security team can audit exactly what it does, and check official downloads against the published checksums ([how](PRICING.md#check-it-yourself)).
+- The source code is public, so you or your security team can audit exactly what it does, and check the downloads against the published checksums ([how](PRICING.md#check-it-yourself)).
 
 Report suspected vulnerabilities privately as described in the [security policy](SECURITY.md).
 
@@ -172,14 +163,14 @@ The apps are all you need, but everything is scriptable. On a Mac the command is
 | `magicinput side auto\|left\|right\|top\|bottom` | Where the other computer is (auto by default) |
 | `magicinput peer <address>` | Connect to a fixed address if discovery doesn't work (`auto` to undo) |
 | `magicinput install` / `uninstall` | Start (or stop starting) at login |
-| `magicinput status [--json]` | Installed? Running? Pairing code, connection, computers nearby, Premium, and the next step |
-| `magicinput license [KEY]` | Show Premium and the free trial, or activate a license key |
+| `magicinput status [--json]` | Installed? Running? Pairing code, connection, computers nearby, license, and the next step |
+| `magicinput license [KEY]` | Show the license, or activate a business license key |
 | `magicinput config` | Show settings and where they're stored |
 | `magicinput run` | Run the background service in the foreground (for debugging) |
 
 ## Build from source
 
-The same code as the official installers, with the same trial and Premium. You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
+The same code as the downloads. You need [Rust](https://rustup.rs). For the Windows build from a Mac, also `brew install mingw-w64`.
 
 ```bash
 git clone https://github.com/betoxf/Magicinput.git
@@ -215,7 +206,7 @@ docs/              architecture, releasing, release notes
 | [Architecture](docs/ARCHITECTURE.md) | Processes, protocol, security model and files. |
 | [Contributing](CONTRIBUTING.md) | Local setup, change standards and validation. |
 | [Releasing](docs/RELEASING.md) | Versioning, notarization and release checklist. |
-| [Pricing](PRICING.md) | Plans, building it yourself, verifying downloads, licenses. |
+| [Pricing](PRICING.md) | Free for personal use, business licenses, verifying downloads. |
 | [Security](SECURITY.md) | Supported versions and private reporting. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community expectations. |
 
@@ -229,8 +220,8 @@ Issues and focused pull requests are welcome. Start with [CONTRIBUTING.md](CONTR
 - Apple's Universal Control, for showing how effortless it should feel
 - [snow](https://github.com/mcginty/snow), [tao and wry](https://github.com/tauri-apps), [mdns-sd](https://github.com/keepsimple1/mdns-sd) and the other crates this builds on
 
-MagicInput is an independent open-source project by bullfighterstudio and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
+MagicInput is an independent project by bullfighterstudio and is not affiliated with, endorsed by, or sponsored by Apple or Microsoft.
 
 ## License
 
-Copyright © 2026 bullfighterstudio. MagicInput is free software under the [GNU General Public License v3.0](LICENSE). Official installers are sold at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput) ([pricing and licensing](PRICING.md)). Versions up to 0.2.0 were released under the MIT License and stay under it.
+Copyright © 2026 bullfighterstudio. MagicInput is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE): free for personal and other noncommercial use; business use needs a [business license](PRICING.md) from [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput#business). Versions 0.3.0 to 0.4.0 were released under the GPL-3.0 and versions up to 0.2.0 under the MIT License; they stay under those licenses.

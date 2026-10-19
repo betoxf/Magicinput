@@ -1,6 +1,6 @@
 # Releasing MagicInput
 
-Releases are built on a Mac with a Developer ID certificate, an App Store Connect API key for notarization, `gh`, `mingw-w64`, `makensis`, `uv` (it runs `dmgbuild`), and `wrangler` logged in to the Cloudflare account that holds the download bucket.
+Releases are built on a Mac with a Developer ID certificate, an App Store Connect API key for notarization, `gh`, `mingw-w64`, `makensis` and `uv` (it runs `dmgbuild`).
 
 ## 1. Prepare
 
@@ -22,7 +22,7 @@ The script runs the tests and builds:
 - `MagicInput-Setup.exe` from `installer/windows/magicinput.nsi`;
 - `SHA256SUMS.txt` for all three.
 
-It uploads the disk image and the setup to the private R2 bucket `magicinput-releases` (override with `MAGICINPUT_BUCKET`) under `vX.Y.Z/` and points `latest.json` at them, so paying customers get them from bullfighterstudio.com. Then it tags `vX.Y.Z` and publishes the GitHub release with the notes, the zip and the checksums.
+Then it tags `vX.Y.Z` and publishes the GitHub release with the notes, the disk image, the setup, the zip and the checksums. The README and bullfighterstudio.com link to `releases/latest/download/MagicInput.dmg` and `MagicInput-Setup.exe`, so they always get the newest version.
 
 The notarization key is read from `MAGICINPUT_NOTARY_KEY`, `MAGICINPUT_NOTARY_KEY_ID` and `MAGICINPUT_NOTARY_ISSUER`, or from the `asc` CLI configuration. Never commit keys.
 
@@ -48,6 +48,6 @@ The identity values are on Partner Center's Product identity page. `makeappx.exe
 
 ## 5. Check
 
-Open a download page from a test purchase (a 100%-off promotion code on a subscription works; one-time payments can't be discounted to $0) and confirm both downloads match `SHA256SUMS.txt`.
+Download `MagicInput.dmg` and `MagicInput-Setup.exe` from the release and confirm they match `SHA256SUMS.txt`. To check business licenses, open a download page from a test purchase (a 100%-off promotion code on a subscription works; one-time payments can't be discounted to $0) and activate its key.
 
 Never move a tag after its release is published.
