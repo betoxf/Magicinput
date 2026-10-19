@@ -5,7 +5,7 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::sync::{Condvar, Mutex, RwLock};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;
@@ -52,8 +52,6 @@ pub struct Peer {
     pub screens: Vec<Rect>,
     pub layout: Option<crate::config::Layout>,
     pub layout_time: u64,
-    /// It has Premium or is in its free trial, which unlocks this computer too.
-    pub access: bool,
 }
 
 struct State {
@@ -105,9 +103,6 @@ struct Delay {
 
 pub struct Core {
     cfg: RwLock<Config>,
-    /// This computer's Premium / trial status (see `license`).
-    access: Mutex<license::Access>,
-    access_ok: AtomicBool,
     mode: AtomicU8,
     out: Sender<Msg>,
     st: Mutex<State>,
@@ -121,10 +116,7 @@ impl Core {
     pub fn new(cfg: Config, out: Sender<Msg>) -> Core {
         let long_ago = Instant::now() - Duration::from_secs(60);
         let layout_seen = cfg.layout_time;
-        let access = license::access(&cfg);
         Core {
-            access_ok: AtomicBool::new(access.ok()),
-            access: Mutex::new(access),
             cfg: RwLock::new(cfg),
             mode: AtomicU8::new(LOCAL),
             out,
@@ -241,7 +233,6 @@ impl Core {
                             self.keyboard_home(&mut st);
                         }
                         if st.peer.is_none()
-                            || !self.allowed(&st)
                             || !st.local_buttons.is_empty()
                             || st.last_switch.elapsed() < Duration::from_millis(300)
                         {
@@ -412,8 +403,6 @@ impl Core {
         let mut st = self.st.lock().unwrap();
         let mode = self.mode.load(Ordering::SeqCst);
         match msg {
-            // Trial over and no Premium on either computer: hand the pointer straight back.
-            Msg::Enter { ratio, .. } if !self.allowed(&st) => self.send(Msg::Leave { ratio }),
             Msg::Enter { ratio, side: their_side } => {
                 if mode == REMOTE {
                     // Both pushed at once; let theirs win and give ours back.
@@ -510,14 +499,10 @@ impl Core {
                 }
                 platform::inject_key(hid, down);
             }
+            // MagicInput 0.4 announced its trial status; there's no trial anymore.
+            Msg::Access { .. } => {}
             // The other computer was clicked: our keyboard types there now.
-            Msg::Access { ok } => {
-                if let Some(p) = st.peer.as_mut() {
-                    p.access = ok;
-                }
-                self.enforce_access(&mut st);
-            }
-            Msg::Focus if mode == LOCAL && self.allowed(&st) => {
+            Msg::Focus if mode == LOCAL => {
                 self.release_injected(&mut st);
                 st.keyboard_claimed = false;
                 st.local_motion = 0.0;
@@ -581,55 +566,7 @@ impl Core {
     }
 
     /// Apply settings changed while running (from the settings window).
-    /// This computer has Premium or is still in its free trial.
-    pub fn local_access(&self) -> bool {
-        self.access_ok.load(Ordering::SeqCst)
-    }
-
-    /// Either computer has Premium or a running trial, which unlocks both.
-    fn allowed(&self, st: &State) -> bool {
-        self.local_access() || st.peer.as_ref().is_some_and(|p| p.access)
-    }
-
-    /// Recompute this computer's Premium / trial status (license key changed, or a day went by)
-    /// and tell the other computer when it changes.
-    pub fn update_access(&self, cfg: &Config) {
-        let access = license::access(cfg);
-        let ok = access.ok();
-        *self.access.lock().unwrap() = access;
-        if self.access_ok.swap(ok, Ordering::SeqCst) != ok {
-            info!("{}", if ok { "MagicInput is unlocked on this computer" } else { "The free trial has ended" });
-            let mut st = self.st.lock().unwrap();
-            if st.peer.is_some() {
-                self.send(Msg::Access { ok });
-            }
-            self.enforce_access(&mut st);
-        }
-    }
-
-    /// Neither computer may share anymore: stop whatever is going on.
-    fn enforce_access(&self, st: &mut State) {
-        if st.peer.is_none() || self.allowed(st) {
-            return;
-        }
-        if st.keys_to_peer {
-            self.keyboard_home(st);
-        }
-        st.keyboard_claimed = false;
-        match self.mode.load(Ordering::SeqCst) {
-            REMOTE => self.come_home(st, 0.5),
-            CONTROLLED => {
-                self.release_injected(st);
-                self.mode.store(LOCAL, Ordering::SeqCst);
-                self.send(Msg::Leave { ratio: 0.5 });
-            }
-            _ => self.release_injected(st),
-        }
-        warn!("Free trial over and no Premium on either computer: get Premium at {}", license::BUY_URL);
-    }
-
     pub fn reload(&self, cfg: Config) {
-        self.update_access(&cfg);
         let side = cfg.peer_side;
         let (layout, time) = (cfg.layout.clone(), cfg.layout_time);
         *self.cfg.write().unwrap() = cfg;
@@ -676,7 +613,7 @@ impl Core {
 
     /// Snapshot for the settings window.
     pub fn status(&self) -> crate::status::Status {
-        let access = self.access.lock().unwrap().clone();
+        let license = license::verify(&self.cfg.read().unwrap().license).map(|l| l.plan);
         let st = self.st.lock().unwrap();
         let mode = self.mode.load(Ordering::SeqCst);
         crate::status::Status {
@@ -686,9 +623,7 @@ impl Core {
             controlling: mode == REMOTE,
             controlled: mode == CONTROLLED,
             keyboard_to_peer: st.keys_to_peer,
-            premium: access.premium,
-            trial_days_left: access.trial_days_left,
-            allowed: st.peer.is_none() || self.allowed(&st),
+            license,
             screens: platform::logical_displays(),
             peer_screens: st.peer.as_ref().map(|p| p.screens.clone()).unwrap_or_default(),
             ..Default::default()
@@ -737,7 +672,7 @@ impl Core {
     /// This computer was clicked with its own mouse or trackpad: from now on the other computer's
     /// keyboard types here too, until it is clicked itself ("the keyboard follows the click").
     fn claim_keyboard(&self, st: &mut State) {
-        if st.peer.is_none() || !self.allowed(st) || !self.cfg.read().unwrap().keyboard_follows_click {
+        if st.peer.is_none() || !self.cfg.read().unwrap().keyboard_follows_click {
             return;
         }
         if st.keys_to_peer {

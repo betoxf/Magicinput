@@ -1,8 +1,6 @@
-//! The free trial and Premium. A computer has access while its 14-day trial runs or once it has
-//! Premium, and a computer with access unlocks MagicInput for the computer connected to it.
-//! Premium comes from a license key (shown on the download page at bullfighterstudio.com and
-//! checked here against the studio's public key, so it works offline) or, in the Microsoft Store
-//! version, from the Store purchase.
+//! Business licenses. MagicInput is free for personal use with every feature; a business can
+//! activate the license key from its download page at bullfighterstudio.com, which is checked here
+//! against the studio's public key (offline) and shown in the panel. Nothing is locked without it.
 
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,8 +12,7 @@ use serde::Deserialize;
 
 use crate::config::Config;
 
-pub const TRIAL_DAYS: u64 = 14;
-pub const BUY_URL: &str = "https://bullfighterstudio.com/magicinput#pricing";
+pub const BUY_URL: &str = "https://bullfighterstudio.com/magicinput#business";
 const DAY: u64 = 86_400;
 /// bullfighterstudio.com signs license keys with the matching Ed25519 private key.
 const PUBLIC_KEY: [u8; 32] = [
@@ -53,37 +50,11 @@ pub fn verify(key: &str) -> Option<License> {
     decode(key).filter(|l| l.exp.is_none_or(|e| e > now()))
 }
 
-/// Days left in this computer's free trial, counted from the first time MagicInput ran here.
-pub fn trial_days_left(cfg: &Config) -> u64 {
-    let start = if cfg.first_run == 0 { now() } else { cfg.first_run };
-    TRIAL_DAYS.saturating_sub(now().saturating_sub(start) / DAY)
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Access {
-    /// The Premium plan ("monthly", "yearly", "lifetime" or "store"), if any.
-    pub premium: Option<String>,
-    pub trial_days_left: u64,
-}
-
-impl Access {
-    pub fn ok(&self) -> bool {
-        self.premium.is_some() || self.trial_days_left > 0
-    }
-}
-
-pub fn access(cfg: &Config) -> Access {
-    let premium = verify(&cfg.license).map(|l| l.plan).or_else(|| store_premium().then(|| "store".to_string()));
-    Access { premium, trial_days_left: trial_days_left(cfg) }
-}
-
-/// One line for people: Premium, the trial, or what to do.
-pub fn describe(access: &Access) -> String {
-    match (&access.premium, access.trial_days_left) {
-        (Some(plan), _) => format!("Premium ({plan}) is active on this computer."),
-        (None, 0) => format!("The free trial has ended. Get Premium on one of your computers: {BUY_URL}"),
-        (None, 1) => "Free trial: 1 day left.".into(),
-        (None, n) => format!("Free trial: {n} days left."),
+/// One line for people: the business license, or that personal use is free.
+pub fn describe(cfg: &Config) -> String {
+    match verify(&cfg.license) {
+        Some(l) => format!("Business license ({}) is active on this computer.", l.plan),
+        None => format!("Free for personal use. Using it for a business needs a license: {BUY_URL}"),
     }
 }
 
@@ -112,30 +83,11 @@ pub fn refresh(cfg: &Config) -> Option<String> {
     (out.status.success() && decode(&key).is_some()).then_some(key)
 }
 
-/// Microsoft Store version: bought in the Store (not a Store trial).
-#[cfg(windows)]
-fn store_premium() -> bool {
-    use windows::Services::Store::StoreContext;
-    if !crate::service::packaged() {
-        return false;
-    }
-    let license = || -> windows::core::Result<bool> {
-        let license = StoreContext::GetDefault()?.GetAppLicenseAsync()?.join()?;
-        Ok(license.IsActive()? && !license.IsTrial()?)
-    };
-    license().unwrap_or(false)
-}
-
-#[cfg(not(windows))]
-fn store_premium() -> bool {
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Signed by bullfighterstudio.com's key, expired in 2023 (so it unlocks nothing).
+    /// Signed by bullfighterstudio.com's key, expired in 2023 (so it's no longer valid).
     const EXPIRED: &str = "eyJ2IjoxLCJwbGFuIjoibW9udGhseSIsImV4cCI6MTcwMDAwMDAwMCwicyI6ImNzX3Rlc3RfZXhhbXBsZSJ9._0T2nd60w3h7sxcwbrqzx3uJYpSWAZXpe2_5jLE4bb0hhI9C6Jb98JvTgUaAgTMbH_wu-fztync3A-kOOmlYBw";
 
     #[test]
@@ -157,16 +109,5 @@ mod tests {
         for key in ["", "abc", "abc.def", "e30.AAAA", "  .  "] {
             assert_eq!(verify(key), None, "{key}");
         }
-    }
-
-    #[test]
-    fn trial_counts_down_from_the_first_run() {
-        let mut cfg = Config::default();
-        assert_eq!(trial_days_left(&cfg), TRIAL_DAYS);
-        cfg.first_run = now() - 3 * DAY - 60;
-        assert_eq!(trial_days_left(&cfg), TRIAL_DAYS - 3);
-        cfg.first_run = now() - 30 * DAY;
-        assert_eq!(trial_days_left(&cfg), 0);
-        assert!(!access(&cfg).ok());
     }
 }

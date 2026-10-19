@@ -60,7 +60,7 @@ enum Cmd {
     },
     /// Stop starting magicinput at login
     Uninstall,
-    /// Show Premium and the free trial, or activate a license key from your download page
+    /// Show the business license, or activate a license key from your download page
     License { key: Option<String> },
 }
 
@@ -129,7 +129,7 @@ pub fn main_with(settings: fn(bool)) {
                 cfg.license_checked = license::now();
                 cfg.save();
             }
-            println!("{}", license::describe(&license::access(&cfg)));
+            println!("{}", license::describe(&cfg));
         }
         Cmd::Uninstall => match service::uninstall() {
             Ok(m) => println!("{m}"),
@@ -168,10 +168,6 @@ fn run(mut cfg: Config) {
         cfg.save();
         print_pairing(&cfg);
     }
-    if cfg.first_run == 0 {
-        cfg.first_run = license::now();
-        cfg.save();
-    }
     // Never leave the cursor hidden or frozen, even if something goes badly wrong.
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -193,7 +189,7 @@ fn run(mut cfg: Config) {
     };
     std::thread::spawn(|| status::publish_loop(platform::core()));
     std::thread::spawn(move || watch_config(core, net));
-    std::thread::spawn(move || license_loop(core));
+    std::thread::spawn(license_loop);
     if cfg.show_tray {
         ui::launch(true);
     }
@@ -229,22 +225,21 @@ fn watch_config(core: &'static core::Core, net: std::sync::Arc<net::Net>) {
     }
 }
 
-/// Keep Premium and the trial current: renew subscription keys, and notice when the trial ends.
-fn license_loop(core: &'static core::Core) {
+/// Renew monthly and yearly business license keys about once a day.
+fn license_loop() {
     loop {
         if let Some(mut cfg) = Config::read() {
             if license::due(&cfg) {
                 cfg.license_checked = license::now();
                 match license::refresh(&cfg) {
                     Some(key) => {
-                        log::info!("Premium license renewed");
+                        log::info!("Business license renewed");
                         cfg.license = key;
                     }
-                    None => log::warn!("Couldn't renew the Premium license (it keeps working until it expires)"),
+                    None => log::warn!("Couldn't renew the business license (it stays valid until it expires)"),
                 }
-                cfg.save(); // the config watcher picks up the new key
+                cfg.save();
             }
-            core.update_access(&cfg);
         }
         std::thread::sleep(std::time::Duration::from_secs(3600));
     }

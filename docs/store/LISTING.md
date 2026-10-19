@@ -29,9 +29,9 @@ Push the pointer off the edge of your screen and it keeps going on the other com
 • Smooth over Wi-Fi: late pointer updates are replayed as a quick glide instead of a jump.
 • Finds your other computer on your network by itself, pairs with a short code, and encrypts everything end to end.
 • Private: no account, no cloud, no telemetry. It only talks to your own computers on your local network.
-• Open source (GPL-3.0): anyone can read and audit the code.
+• Free for personal use, with every feature. The source code is public, so anyone can audit it.
 
-Free for 14 days. Buy it here once to unlock MagicInput on this PC and on the computer connected to it, or use a license key from bullfighterstudio.com/magicinput.
+Free for personal use. Businesses need a license from bullfighterstudio.com/magicinput.
 
 MagicInput needs a Mac (macOS 13 or newer) running MagicInput too, on the same local network. Get the Mac version at bullfighterstudio.com/magicinput.
 
@@ -50,7 +50,7 @@ Automatic ⌘/Ctrl swap
 Finds the other computer automatically
 End-to-end encrypted, local network only
 No account, no cloud, no telemetry
-Open source (GPL-3.0)
+Free for personal use
 
 ## Search terms (up to 7)
 

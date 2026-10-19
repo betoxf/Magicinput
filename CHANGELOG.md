@@ -2,6 +2,15 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- **Free for personal use, with every feature.** The trial and the lock from 0.4.0 are gone. The Mac disk image and the Windows setup are on the GitHub releases again, next to the Homebrew zip.
+- **Business use needs a license:** $10 a month, $96 a year or $199 once, for all the business's computers, at [bullfighterstudio.com/magicinput](https://bullfighterstudio.com/magicinput#business). A license key is optional in the app (it shows "Business license"); nothing is locked without it.
+- **New license:** the [PolyForm Noncommercial License 1.0.0](LICENSE) (free for personal and other noncommercial use). Versions 0.3.0 to 0.4.0 stay under the GPL-3.0.
+- Still connects to computers running 0.4.0.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added

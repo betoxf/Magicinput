@@ -18,11 +18,8 @@ pub struct Status {
     pub controlled: bool,
     /// This computer's keyboard is typing on the other computer (it was clicked last).
     pub keyboard_to_peer: bool,
-    /// This computer's Premium plan, if any, and the days left in its free trial.
-    pub premium: Option<String>,
-    pub trial_days_left: u64,
-    /// MagicInput may share input (Premium or a trial on either computer, or nothing connected).
-    pub allowed: bool,
+    /// The business license plan on this computer, if one is activated.
+    pub license: Option<String>,
     /// The service is running but waiting for macOS permissions.
     pub waiting_for_permission: bool,
     /// Screens of this computer and of the other one, in logical units.
@@ -102,7 +99,6 @@ pub fn report(cfg: &mut Config, json: bool) {
         None => "not_running",
     };
     let connected = st.as_ref().and_then(|s| s.peer.clone());
-    let access = crate::license::access(cfg);
     let nearby: Vec<Nearby> = discover(cfg, Duration::from_secs(3));
     let role = if connected.is_some() { "paired" } else if nearby.is_empty() { "first" } else { "second" };
 
@@ -144,8 +140,7 @@ pub fn report(cfg: &mut Config, json: bool) {
             "installed": installed,
             "service": service,
             "pairing_code": cfg.code,
-            "premium": access.premium,
-            "trial_days_left": access.trial_days_left,
+            "business_license": crate::license::verify(&cfg.license).map(|l| l.plan),
             "connected_to": connected,
             "role": role,
             "nearby": nearby.iter().map(|n| serde_json::json!({ "name": n.name, "address": n.address, "same_code": n.same_code })).collect::<Vec<_>>(),
@@ -157,13 +152,7 @@ pub fn report(cfg: &mut Config, json: bool) {
     let yes = |b: bool| if b { "yes" } else { "no" };
     println!("MagicInput {} on {} ({os})", env!("CARGO_PKG_VERSION"), cfg.name);
     println!("  Starts at login:  {}", yes(installed));
-    let premium = match st.as_ref() {
-        Some(s) if access.premium.is_none() && access.trial_days_left == 0 && s.allowed && s.peer.is_some() => {
-            format!("Unlocked by Premium on {}.", s.peer.as_deref().unwrap_or_default())
-        }
-        _ => crate::license::describe(&access),
-    };
-    println!("  Premium:          {premium}");
+    println!("  License:          {}", crate::license::describe(cfg));
     println!("  Service:          {}", service.replace('_', " "));
     println!("  Pairing code:     {}", cfg.code);
     println!("  Connected to:     {}", connected.as_deref().unwrap_or("nothing yet"));
