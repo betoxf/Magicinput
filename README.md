@@ -45,7 +45,7 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 | Works both ways | Drive the PC from the Mac, or the Mac from the PC's keyboard and mouse. Whichever you're touching is in charge. |
 | Just push past the edge | **Auto** mode needs no setup: push firmly past the left or right edge. Or arrange the screens exactly. |
 | Arrange like System Settings | Drag the PC next to your displays, iPad (Sidecar) included, and move the iPad itself. The pointer crosses only where the screens touch, at the matching height. |
-| Keyboard follows the click | Click into a text field with the PC's own mouse and keep typing on the Mac keyboard (and the other way round). |
+| Keyboard follows the click | No keyboard on the PC? Click into a text field with its own mouse and keep typing on the Mac keyboard (and the other way round). |
 | Copy and paste across | Copied text follows the pointer to the other computer. |
 | Mac shortcuts on the PC | ⌘C copies on Windows (Ctrl and ⌘ swap automatically; can be turned off). |
 | Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
@@ -82,7 +82,7 @@ MagicInput is free for personal use, with every feature. Using it for a business
 
 **Switching to the other computer’s own mouse or keyboard?** A deliberate mouse movement, click, or key press reclaims control there. You can then cross its screen edge normally. Small mouse twitches are ignored.
 
-**The keyboard follows your last click.** Click with the PC's own mouse (say, into a text field) and your Mac keyboard types there; click on the Mac again and it types on the Mac. It works the same the other way round. Moving a computer's own mouse deliberately also brings its keyboard back. Turn it off with `keyboard_follows_click = false` in the config file (`magicinput config` shows where it is).
+**The keyboard follows your last click** when the clicked computer has no keyboard of its own. Click with the PC's own mouse (say, into a text field) and your Mac keyboard types there; click on the Mac again and it types on the Mac. It works the same the other way round. Moving a computer's own mouse deliberately also brings its keyboard back. Once a computer's own keyboard has been used, clicking it keeps each keyboard on its own computer: they only move together with the pointer when it crosses the edge. Turn it off entirely with `keyboard_follows_click = false` in the config file (`magicinput config` shows where it is).
 
 An iPad participates as a display connected to your Mac through Sidecar; MagicInput does not require or provide a standalone iPad app.
 
@@ -108,7 +108,7 @@ It installs MagicInput, works out whether this is the first or second computer, 
 
 | Control | What it does |
 | --- | --- |
-| Menu bar / tray icon | Opens the panel (click away or press Esc to close). The icon is optional: open MagicInput from Spotlight or the Start menu instead. |
+| Menu bar / tray icon | Opens the panel (click away or press Esc to close). Hide it from its menu; opening MagicInput from Spotlight or the Start menu brings it back. |
 | Displays | Your screens with their wallpapers, and the other computer. Drag the other computer along any edge; drag an iPad or external display to move it. **Auto** goes back to "push past the left or right edge". |
 | Clipboard | Share copied text between the computers. |
 | ⌘ as Ctrl | Swap Ctrl and ⌘ between Mac and Windows so shortcuts feel native. |

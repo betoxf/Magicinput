@@ -2,6 +2,13 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+
+- **Each keyboard stays on its own computer.** Once a computer's own keyboard has been used, clicking it with its own mouse no longer pulls the other computer's keyboard over, so clicking on the PC doesn't interrupt typing on the Mac (and the other way round). The keyboards only move with the pointer when it crosses the edge. A computer without a keyboard still borrows the other one's when clicked.
+- Opening MagicInput (Spotlight, Finder, the Start menu) brings back a hidden menu bar / tray icon, until it's hidden again from its menu.
+
 ## [0.5.0] - 2026-10-19
 
 ### Changed

@@ -159,18 +159,25 @@ pub fn run(background: bool) {
     event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::Wait;
         let mut show = false;
+        // Opened by hand (Spotlight, Finder, the Start menu), not just from the icon.
+        let mut opened = false;
         match event {
             Event::NewEvents(StartCause::Init) => {
                 if Config::load().show_tray {
                     tray = make_tray();
                 }
                 show = !background;
+                opened = !background;
             }
             #[cfg(target_os = "macos")]
-            Event::Reopen { .. } => show = true,
+            Event::Reopen { .. } => {
+                show = true;
+                opened = true;
+            }
             Event::UserEvent(UserEvent::Show) => {
                 anchor = None;
                 show = true;
+                opened = true;
             }
             // The icon toggles the panel. A click that just closed it (by taking focus away)
             // shouldn't immediately reopen it.
@@ -299,6 +306,11 @@ pub fn run(background: bool) {
                 closed_at = std::time::Instant::now();
             }
             _ => {}
+        }
+        // Opening MagicInput brings a hidden icon back, until it's hidden again from its menu.
+        if opened && tray.is_none() {
+            save(|c| c.show_tray = true);
+            tray = make_tray();
         }
         if show {
             match &win {
