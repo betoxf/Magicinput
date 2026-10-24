@@ -18,4 +18,6 @@ for s in panel pairing how; do "$C" --headless=new --disable-gpu --hide-scrollba
   --force-device-scale-factor=1 --window-size=1920,1080 --virtual-time-budget=5000 \
   --screenshot=docs/store/screenshot-$s.png "file://$PWD/docs/media-src/store.html?shot=$s"; done
 r "logo.html?dark" 760,200 assets/brand/magicinput-logo-dark.png
+# Release / social image for AirDrop to the PC (1200x630):
+r airdrop.html 1200,630 images/airdrop-to-pc.png
 ```

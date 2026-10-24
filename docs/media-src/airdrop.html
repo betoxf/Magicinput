@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #f5f5f7;
+  background: radial-gradient(circle at 12% 18%, #3b1d7a 0, transparent 42%), radial-gradient(circle at 88% 30%, #0e4a8a 0, transparent 45%), radial-gradient(circle at 60% 110%, #7a1d5c 0, transparent 50%), #0b0a1a; }
+svg { position: absolute; inset: 0; }
+.top { position: absolute; left: 0; right: 0; top: 46px; text-align: center; }
+.pill { display: inline-block; font-size: 15px; font-weight: 650; letter-spacing: .02em; padding: 7px 16px; border-radius: 99px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); }
+.pill b { background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f9a8d4); -webkit-background-clip: text; color: transparent; }
+h1 { margin: 18px 0 0; font-size: 68px; line-height: 1.02; letter-spacing: -.045em; font-weight: 800; }
+h1 span { background: linear-gradient(90deg, #38bdf8 0%, #a78bfa 50%, #f472b6 100%); -webkit-background-clip: text; color: transparent; }
+.sub { margin: 14px auto 0; font-size: 21px; line-height: 1.35; color: rgba(245,245,247,.72); letter-spacing: -.01em; }
+.foot { position: absolute; left: 44px; right: 44px; bottom: 26px; display: flex; align-items: center; justify-content: space-between; font-size: 16px; color: rgba(245,245,247,.75); }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 760; letter-spacing: -.03em; color: #fff; }
+.brand svg { position: static; width: 40px; height: 40px; }
+.tm { position: absolute; right: 44px; bottom: 8px; font-size: 10.5px; color: rgba(245,245,247,.35); }
+</style></head><body>
+<svg viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="photo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset=".55" stop-color="#f472b6"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+    <linearGradient id="mac" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset=".55" stop-color="#7c3aed"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+    <linearGradient id="pc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0c4a6e"/><stop offset="1" stop-color="#1e40af"/></linearGradient>
+    <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#38bdf8"/><stop offset=".5" stop-color="#a78bfa"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".45"/></filter>
+    <symbol id="spark" viewBox="-10 -10 20 20"><path d="M0,-10 C1,-1 1,-1 10,0 C1,1 1,1 0,10 C-1,1 -1,1 -10,0 C-1,-1 -1,-1 0,-10 Z" fill="#fff"/></symbol>
+    <g id="card"><rect x="-26" y="-20" width="52" height="40" rx="6" fill="#fff"/><rect x="-22" y="-16" width="44" height="28" rx="3" fill="url(#photo)"/><path d="M-22 12 L-8 -2 L2 6 L10 0 L22 10 L22 12 Z" fill="#4c1d95" opacity=".55"/><circle cx="12" cy="-8" r="3.5" fill="#fde68a"/></g>
+  </defs>
+
+  <!-- sparkles -->
+  <g opacity=".85">
+    <use href="#spark" x="70" y="160" width="18" height="18"/><use href="#spark" x="1110" y="120" width="22" height="22"/>
+    <use href="#spark" x="300" y="300" width="12" height="12" opacity=".7"/><use href="#spark" x="960" y="250" width="14" height="14"/>
+    <use href="#spark" x="620" y="280" width="16" height="16"/><use href="#spark" x="1150" y="420" width="12" height="12" opacity=".6"/>
+    <use href="#spark" x="40" y="440" width="14" height="14" opacity=".6"/>
+  </g>
+
+  <g transform="translate(0,-18)">
+  <!-- iPhone -->
+  <g transform="translate(205,455) rotate(-8)" filter="url(#sh)">
+    <circle r="104" fill="none" stroke="#7dd3fc" stroke-width="2" opacity=".35"/>
+    <circle r="124" fill="none" stroke="#a78bfa" stroke-width="2" opacity=".2"/>
+    <rect x="-46" y="-92" width="92" height="184" rx="20" fill="#1c1c1f" stroke="#3a3a40" stroke-width="2"/>
+    <rect x="-40" y="-86" width="80" height="172" rx="15" fill="#0f0f14"/>
+    <rect x="-14" y="-80" width="28" height="8" rx="4" fill="#000"/>
+    <rect x="-34" y="-58" width="68" height="84" rx="8" fill="url(#photo)"/>
+    <path d="M-34 18 L-12 -6 L2 8 L14 -2 L34 16 L34 18 Q34 26 26 26 L-26 26 Q-34 26 -34 18 Z" fill="#4c1d95" opacity=".55"/>
+    <circle cx="16" cy="-40" r="7" fill="#fde68a"/>
+    <rect x="-30" y="40" width="60" height="24" rx="12" fill="#2563eb"/>
+    <text x="0" y="57" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="-apple-system, system-ui">Share</text>
+  </g>
+
+  <!-- MacBook -->
+  <g filter="url(#sh)">
+    <rect x="470" y="392" width="230" height="146" rx="10" fill="url(#mac)" stroke="#1c1c1f" stroke-width="6"/>
+    <path d="M444 544 h282 l-14 14 h-254 z" fill="#c7c7cc"/>
+    <rect x="507" y="440" width="156" height="44" rx="10" fill="rgba(15,15,20,.72)"/>
+    <text x="585" y="458" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff" font-family="-apple-system, system-ui">MagicInput</text>
+    <text x="585" y="474" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.75)" font-family="-apple-system, system-ui">Sending to your PC…</text>
+  </g>
+
+  <!-- PC monitor -->
+  <g filter="url(#sh)">
+    <rect x="808" y="330" width="320" height="200" rx="9" fill="url(#pc)" stroke="#1c1c1f" stroke-width="7"/>
+    <path d="M968 534 v26 M926 562 h84" stroke="#8e8e93" stroke-width="8" stroke-linecap="round"/>
+    <!-- Downloads window -->
+    <rect x="836" y="352" width="264" height="158" rx="7" fill="#f3f4f6"/>
+    <rect x="836" y="352" width="264" height="24" rx="7" fill="#e5e7eb"/>
+    <rect x="836" y="368" width="264" height="8" fill="#e5e7eb"/>
+    <path d="M848 360 h10 l3 3 h11 v9 h-24 z" fill="#f59e0b"/>
+    <text x="880" y="369" font-size="11.5" font-weight="600" fill="#111827" font-family="Segoe UI, -apple-system, system-ui">Downloads</text>
+    <g font-family="Segoe UI, -apple-system, system-ui" font-size="11">
+      <rect x="842" y="384" width="252" height="34" rx="5" fill="#dbeafe" stroke="#60a5fa" stroke-width="1.5"/>
+      <rect x="848" y="389" width="30" height="24" rx="3" fill="url(#photo)"/>
+      <text x="886" y="400" font-weight="700" fill="#111827">IMG_2048.HEIC</text>
+      <text x="886" y="413" fill="#2563eb" font-weight="600">Just now · from your iPhone</text>
+      <rect x="850" y="428" width="20" height="16" rx="2" fill="#cbd5e1"/><rect x="878" y="432" width="110" height="7" rx="3.5" fill="#d1d5db"/>
+      <rect x="850" y="452" width="20" height="16" rx="2" fill="#cbd5e1"/><rect x="878" y="456" width="80" height="7" rx="3.5" fill="#d1d5db"/>
+      <rect x="850" y="476" width="20" height="16" rx="2" fill="#cbd5e1"/><rect x="878" y="480" width="128" height="7" rx="3.5" fill="#d1d5db"/>
+    </g>
+  </g>
+
+  <!-- the trip -->
+  <g fill="none" stroke="url(#trail)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="2 12" filter="url(#glow)">
+    <path d="M235 345 C 300 250, 420 260, 520 380"/>
+    <path d="M650 380 C 720 270, 830 250, 930 324"/>
+  </g>
+  <use href="#card" transform="translate(372,286) rotate(12)" filter="url(#sh)"/>
+  <use href="#card" transform="translate(790,282) rotate(-8) scale(.9)" filter="url(#sh)"/>
+
+  <!-- confetti where it lands -->
+  <g>
+    <rect x="1060" y="372" width="8" height="4" rx="1" fill="#f472b6" transform="rotate(30 1064 374)"/>
+    <rect x="1078" y="392" width="8" height="4" rx="1" fill="#38bdf8" transform="rotate(-25 1082 394)"/>
+    <rect x="1104" y="364" width="7" height="4" rx="1" fill="#fde68a" transform="rotate(60 1107 366)"/>
+    <circle cx="1094" cy="378" r="3" fill="#a78bfa"/><circle cx="1120" cy="392" r="2.5" fill="#f472b6"/>
+    <use href="#spark" x="1104" y="398" width="16" height="16"/>
+  </g>
+  </g>
+</svg>
+
+<div class="top">
+  <div class="pill">NEW in <b>MagicInput 0.6</b></div>
+  <h1>AirDrop to your <span>Windows PC.</span></h1>
+  <div class="sub">Share from your iPhone like always. Your Mac passes it straight<br>to the PC you're working on, into Downloads.</div>
+</div>
+
+<div class="foot">
+  <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+    <defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E6E9"/></linearGradient></defs>
+    <rect x="100" y="132" width="824" height="792" rx="184" fill="url(#tile)"/>
+    <g transform="translate(112,150) scale(8)">
+      <rect x="30" y="24" width="44" height="33" rx="5" fill="none" stroke="#111114" stroke-width="4.2"/>
+      <rect x="51" y="45" width="34" height="27" rx="4.5" fill="#EEEEF0" stroke="#111114" stroke-width="4.2"/>
+      <path d="M27,47 L27,74 L33.6,67.6 L38.4,78 L42.6,76.1 L37.9,65.9 L46.8,65.4 Z" fill="#111114" stroke="#F1F1F3" stroke-width="2.6" stroke-linejoin="round"/>
+    </g></svg>MagicInput</div>
+  <div>Free for personal use · github.com/betoxf/Magicinput</div>
+</div>
+<div class="tm">AirDrop and iPhone are trademarks of Apple Inc. Windows is a trademark of Microsoft Corporation.</div>
+</body></html>

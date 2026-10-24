@@ -2,7 +2,7 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-25
 
 ### Changed
 
@@ -12,6 +12,10 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 ### Added
 
 - **AirDrop to the PC.** Files AirDropped to the Mac move on to the PC's Downloads folder (and show in Explorer) when you were working on the PC: the pointer is there, or the PC's own keyboard or mouse was used more recently than the Mac's. Set `airdrop = "always"` or `"never"` in the Mac's config file to change that. They travel encrypted over a connection of their own, so the pointer stays smooth. The first time, macOS asks to let MagicInput access the Downloads folder. Both computers need this version.
+
+### Compatibility
+
+- Connects to computers running 0.5.0 and 0.4.0. They just don't receive AirDrops: files stay on the Mac.
 
 ## [0.5.0] - 2026-10-19
 
@@ -88,6 +92,7 @@ First public release (superseded by 0.1.1; its downloads were withdrawn).
 - Signed and notarized universal macOS app; Windows build with its own icon.
 
 
+[0.6.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.6.0
 [0.5.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.5.0
 [0.4.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.4.0
 [0.3.1]: https://github.com/betoxf/Magicinput/releases/tag/v0.3.1

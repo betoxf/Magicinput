@@ -85,6 +85,12 @@ MagicInput is free for personal use, with every feature. Using it for a business
 
 **The keyboard follows your last click** when the clicked computer has no keyboard of its own. Click with the PC's own mouse (say, into a text field) and your Mac keyboard types there; click on the Mac again and it types on the Mac. It works the same the other way round. Moving a computer's own mouse deliberately also brings its keyboard back. Once a computer's own keyboard has been used, clicking it keeps each keyboard on its own computer: they only move together with the pointer when it crosses the edge. Turn it off entirely with `keyboard_follows_click = false` in the config file (`magicinput config` shows where it is).
 
+**AirDrop to your PC.** Windows can't receive AirDrop, so the Mac passes it on: AirDrop a photo or file from your iPhone to the Mac while you're working on the PC, and it moves to the PC's Downloads folder and shows in Explorer. If you were working on the Mac, it stays there. Set `airdrop = "always"` or `"never"` in the Mac's config file to change that.
+
+<p align="center">
+  <img src="images/airdrop-to-pc.png" alt="A photo flying from an iPhone through a Mac into the Downloads folder on a Windows PC" width="720">
+</p>
+
 An iPad participates as a display connected to your Mac through Sidecar; MagicInput does not require or provide a standalone iPad app.
 
 **Control+Option+Esc** on the Mac (**Ctrl+Alt+Esc** on the PC) always brings the pointer home.
