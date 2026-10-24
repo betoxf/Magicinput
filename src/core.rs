@@ -160,6 +160,9 @@ impl Core {
     /// Called from the platform's input hook. Returns true if the event must be swallowed.
     pub fn on_local_input(&self, ev: LocalEvent) -> bool {
         let mut st = self.st.lock().unwrap();
+        if matches!(ev, LocalEvent::Key { down: true, .. }) && !self.cfg.read().unwrap().has_keyboard {
+            self.note_own_keyboard();
+        }
         match self.mode.load(Ordering::SeqCst) {
             REMOTE => {
                 match ev {
@@ -671,6 +674,8 @@ impl Core {
 
     /// This computer was clicked with its own mouse or trackpad: from now on the other computer's
     /// keyboard types here too, until it is clicked itself ("the keyboard follows the click").
+    /// Not when this computer has a keyboard of its own: then a click here means working here
+    /// with that keyboard, and the other computer's keyboard stays where it is.
     fn claim_keyboard(&self, st: &mut State) {
         if st.peer.is_none() || !self.cfg.read().unwrap().keyboard_follows_click {
             return;
@@ -678,10 +683,22 @@ impl Core {
         if st.keys_to_peer {
             self.keyboard_home(st);
         }
-        if !st.keyboard_claimed {
+        if !st.keyboard_claimed && !self.cfg.read().unwrap().has_keyboard {
             st.keyboard_claimed = true;
             self.send(Msg::Focus);
         }
+    }
+
+    /// A key was pressed on this computer's own keyboard for the first time: remember it, so
+    /// clicking here keeps each keyboard on its own computer from now on.
+    fn note_own_keyboard(&self) {
+        self.cfg.write().unwrap().has_keyboard = true;
+        info!("This computer has its own keyboard: clicking here won't borrow the other one's");
+        std::thread::spawn(|| {
+            let mut c = Config::load();
+            c.has_keyboard = true;
+            c.save();
+        });
     }
 
     /// Stop sending our keyboard to the other computer (releasing any keys held there).
@@ -749,4 +766,27 @@ fn deliberate_motion(st: &mut State, dx: f64, dy: f64) -> bool {
     st.local_motion += dx.abs() + dy.abs();
     st.local_motion_at = Instant::now();
     st.local_motion > TAKE_OVER_MOTION
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn connected(has_keyboard: bool) -> (Core, crossbeam_channel::Receiver<Msg>) {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let core = Core::new(Config { has_keyboard, ..Config::default() }, tx);
+        core.on_connect(Peer { name: "PC".into(), os: Os::Windows, side_hint: None, screens: vec![], layout: None, layout_time: 0 });
+        (core, rx)
+    }
+
+    #[test]
+    fn a_click_borrows_the_other_keyboard_only_without_one_here() {
+        let (core, rx) = connected(false);
+        core.on_local_input(LocalEvent::Button { button: Button::Left, down: true });
+        assert!(matches!(rx.try_recv(), Ok(Msg::Focus)));
+
+        let (core, rx) = connected(true);
+        core.on_local_input(LocalEvent::Button { button: Button::Left, down: true });
+        assert!(rx.try_recv().is_err(), "each keyboard stays on its own computer");
+    }
 }

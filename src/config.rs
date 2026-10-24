@@ -53,8 +53,11 @@ pub struct Config {
     /// Show the icon in the menu bar (Mac) / notification area (Windows).
     pub show_tray: bool,
     /// The keyboard follows the last click: after clicking with one computer's own mouse,
-    /// the other computer's keyboard types there too.
+    /// the other computer's keyboard types there too (unless this one has its own keyboard).
     pub keyboard_follows_click: bool,
+    /// This computer's own keyboard has been used, so clicking here never borrows the other
+    /// computer's keyboard: each keyboard types on its own computer until the pointer crosses.
+    pub has_keyboard: bool,
     /// Arrangement from the settings window; `None` = auto / `peer_side`.
     pub layout: Option<Layout>,
     /// When `layout` last changed (unix ms), so both computers keep the newest.
@@ -80,6 +83,7 @@ impl Default for Config {
             clipboard: true,
             show_tray: false,
             keyboard_follows_click: true,
+            has_keyboard: false,
             layout: None,
             layout_time: 0,
             license: String::new(),
