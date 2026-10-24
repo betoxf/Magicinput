@@ -1,5 +1,7 @@
 //! Shared entry point for `magicinput` (command line) and `magicinputw` (Windows background, no window).
 
+#[cfg(target_os = "macos")]
+mod airdrop;
 mod config;
 mod core;
 mod geom;
@@ -188,6 +190,11 @@ fn run(mut cfg: Config) {
         Err(e) => exit(&e.to_string()),
     };
     std::thread::spawn(|| status::publish_loop(platform::core()));
+    #[cfg(target_os = "macos")]
+    {
+        let net = net.clone();
+        std::thread::spawn(move || airdrop::watch(core, net));
+    }
     std::thread::spawn(move || watch_config(core, net));
     std::thread::spawn(license_loop);
     if cfg.show_tray {

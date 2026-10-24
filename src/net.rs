@@ -2,8 +2,10 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -24,6 +26,12 @@ const NOISE: &str = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s";
 const SERVICE: &str = "_magicinput._tcp.local.";
 const MAX_FRAME: usize = 65535;
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// File connections wait longer: saving the end of a big file can take a while.
+const FILE_TIMEOUT: Duration = Duration::from_secs(30);
+// Only Macs send files (AirDrops) for now.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// File data per message (a frame holds 65535 bytes, minus encryption and message overhead).
+const CHUNK: usize = 60_000;
 
 struct Active {
     generation: u64,
@@ -248,7 +256,11 @@ impl Net {
             access: true,
         };
         write_msg(&mut stream, &mut noise, &hello)?;
-        let Msg::Hello { id, name, os, version, peer_side, screens, layout, layout_time, .. } = read_msg(&mut stream, &mut noise)? else {
+        let first = read_msg(&mut stream, &mut noise)?;
+        if let Msg::Offer { name, size, force, idle_ms } = first {
+            return receive_offer(&mut stream, &mut noise, &name, size, force, idle_ms);
+        }
+        let Msg::Hello { id, name, os, version, peer_side, screens, layout, layout_time, .. } = first else {
             return Err("expected hello".into());
         };
         if version != PROTOCOL_VERSION {
@@ -302,6 +314,31 @@ impl Net {
             self.core.on_disconnect();
         }
         Ok(())
+    }
+
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    /// Offer a file to the other computer over a connection of its own. `force`: our user is
+    /// working on the other computer. Returns whether it took the file and saved all of it.
+    pub fn send_file(&self, path: &Path, force: bool) -> Res<bool> {
+        let addr = {
+            let active = self.active.lock().unwrap();
+            let Some(a) = active.as_ref() else { return Ok(false) };
+            let port = self.found.lock().unwrap().get(&a.peer_id).map(|f| f.port);
+            SocketAddr::new(a.stream.peer_addr()?.ip(), port.unwrap_or(self.cfg.read().unwrap().port))
+        };
+        let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
+        stream.set_nodelay(true)?;
+        stream.set_read_timeout(Some(FILE_TIMEOUT))?;
+        stream.set_write_timeout(Some(FILE_TIMEOUT))?;
+        let psk = *self.psk.lock().unwrap();
+        let mut noise = handshake(&mut stream, &psk, true)?;
+        let Msg::Hello { version, .. } = read_msg(&mut stream, &mut noise)? else {
+            return Err("expected hello".into());
+        };
+        if version != PROTOCOL_VERSION {
+            return Err(format!("the other computer runs protocol v{version}, we run v{PROTOCOL_VERSION}").into());
+        }
+        offer_file(&mut stream, &mut noise, path, force, crate::platform::idle_ms())
     }
 
     /// Sends queued messages, and a ping every second so both sides notice a dead link.
@@ -448,6 +485,114 @@ fn handshake(stream: &mut TcpStream, psk: &[u8; 32], initiator: bool) -> Res<Tra
     Ok(hs.into_transport_mode()?)
 }
 
+/// The other computer offers a file: take it into Downloads if its user is working here (or
+/// this computer was used more recently), and show it.
+fn receive_offer(stream: &mut TcpStream, noise: &mut TransportState, name: &str, size: u64, force: bool, idle_ms: u64) -> Res<()> {
+    stream.set_read_timeout(Some(FILE_TIMEOUT))?;
+    stream.set_write_timeout(Some(FILE_TIMEOUT))?;
+    let here = crate::platform::idle_ms();
+    let accept = force || here < idle_ms;
+    info!("Offered {name} ({size} bytes): {} (used {here} ms ago here, {idle_ms} ms ago there)", if accept { "taking it" } else { "leaving it there" });
+    let dir = directories::UserDirs::new().and_then(|d| d.download_dir().map(Path::to_path_buf)).ok_or("no Downloads folder")?;
+    if let Some(path) = receive_file(stream, noise, name, size, accept, &dir)? {
+        info!("Saved {}", path.display());
+        crate::platform::reveal(&path);
+    }
+    Ok(())
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// Sender side of a file connection, after the hello.
+fn offer_file(stream: &mut TcpStream, noise: &mut TransportState, path: &Path, force: bool, idle_ms: u64) -> Res<bool> {
+    let mut file = File::open(path)?;
+    let size = file.metadata()?.len();
+    let name = path.file_name().and_then(|n| n.to_str()).ok_or("file name isn't text")?.to_string();
+    write_msg(stream, noise, &Msg::Offer { name, size, force, idle_ms })?;
+    let Msg::Answer { accept } = read_msg(stream, noise)? else {
+        return Err("expected an answer".into());
+    };
+    if !accept {
+        return Ok(false);
+    }
+    let mut buf = vec![0u8; CHUNK];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        write_msg(stream, noise, &Msg::Data(buf[..n].to_vec()))?;
+    }
+    match read_msg(stream, noise)? {
+        Msg::Received => Ok(true),
+        _ => Err("expected a receipt".into()),
+    }
+}
+
+/// Receiver side: answer, then save the file into `dir` under a free name. Nothing is left
+/// behind if the transfer breaks off.
+fn receive_file(stream: &mut TcpStream, noise: &mut TransportState, name: &str, size: u64, accept: bool, dir: &Path) -> Res<Option<PathBuf>> {
+    write_msg(stream, noise, &Msg::Answer { accept })?;
+    if !accept {
+        return Ok(None);
+    }
+    static PART: AtomicU64 = AtomicU64::new(0);
+    let name = safe_name(name);
+    let part = dir.join(format!("{name}.{}.magicinput", PART.fetch_add(1, Ordering::SeqCst)));
+    let r = (|| -> Res<PathBuf> {
+        let mut file = File::create(&part)?;
+        let mut got = 0u64;
+        while got < size {
+            let Msg::Data(d) = read_msg(stream, noise)? else {
+                return Err("expected file data".into());
+            };
+            got += d.len() as u64;
+            if got > size {
+                return Err("more data than announced".into());
+            }
+            file.write_all(&d)?;
+        }
+        file.sync_all()?;
+        drop(file);
+        let dest = free_path(dir, &name);
+        std::fs::rename(&part, &dest)?;
+        write_msg(stream, noise, &Msg::Received)?;
+        Ok(dest)
+    })();
+    if r.is_err() {
+        let _ = std::fs::remove_file(&part);
+    }
+    r.map(Some)
+}
+
+/// A file name that is safe on Windows and macOS: no folders, no reserved characters.
+fn safe_name(name: &str) -> String {
+    let s: String = name.chars().map(|c| if c.is_control() || r#"/\:*?"<>|"#.contains(c) { '_' } else { c }).collect();
+    let s = s.trim_matches(|c: char| c == '.' || c.is_whitespace());
+    let stem = s.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
+        || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.as_bytes()[3].is_ascii_digit());
+    match s {
+        "" => "file".into(),
+        s if reserved => format!("_{s}"),
+        s => s.into(),
+    }
+}
+
+/// `dir/name`, or `dir/name (2).ext` and so on if that's taken.
+fn free_path(dir: &Path, name: &str) -> PathBuf {
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
+        _ => (name, String::new()),
+    };
+    let mut path = dir.join(name);
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    path
+}
+
 fn write_msg(stream: &mut TcpStream, noise: &mut TransportState, msg: &Msg) -> Res<()> {
     let plain = postcard::to_stdvec(msg)?;
     if plain.len() + 16 > MAX_FRAME {
@@ -518,6 +663,53 @@ mod tests {
         assert!(same_lan("127.0.0.1".parse().unwrap()));
         assert!(!same_lan("100.100.1.1".parse().unwrap())); // Tailscale range
         assert!(!same_lan("8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn file_travels_in_pieces_and_lands_under_a_free_name() {
+        let dir = std::env::temp_dir().join(format!("magicinput-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("out")).unwrap();
+        let src = dir.join("photo.heic");
+        let data: Vec<u8> = (0..150_000u32).map(|i| i as u8).collect();
+        std::fs::write(&src, &data).unwrap();
+        std::fs::write(dir.join("out/photo.heic"), b"already here").unwrap();
+
+        let (ra, rb, mut a, mut b) = pair([3; 32], [3; 32]);
+        let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
+        let sender = thread::spawn(move || offer_file(&mut a, &mut na, &src, true, 0).unwrap());
+        let Msg::Offer { name, size, force, .. } = read_msg(&mut b, &mut nb).unwrap() else { panic!("expected an offer") };
+        assert_eq!((name.as_str(), size, force), ("photo.heic", 150_000, true));
+        let saved = receive_file(&mut b, &mut nb, &name, size, true, &dir.join("out")).unwrap().unwrap();
+        assert!(sender.join().unwrap(), "sender saw the receipt");
+        assert_eq!(saved, dir.join("out/photo (2).heic"));
+        assert_eq!(std::fs::read(&saved).unwrap(), data);
+        assert_eq!(std::fs::read_dir(dir.join("out")).unwrap().count(), 2, "no part file left");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn declined_files_stay_with_the_sender() {
+        let dir = std::env::temp_dir().join(format!("magicinput-test-decline-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("a.txt");
+        std::fs::write(&src, b"hi").unwrap();
+        let (ra, rb, mut a, mut b) = pair([4; 32], [4; 32]);
+        let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
+        let sender = thread::spawn(move || offer_file(&mut a, &mut na, &src, false, 0).unwrap());
+        let Msg::Offer { name, size, .. } = read_msg(&mut b, &mut nb).unwrap() else { panic!("expected an offer") };
+        assert_eq!(receive_file(&mut b, &mut nb, &name, size, false, &dir).unwrap(), None);
+        assert!(!sender.join().unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_names_are_made_safe() {
+        assert_eq!(safe_name("../../etc/passwd"), "_.._etc_passwd");
+        assert_eq!(safe_name("a:b*c?.txt"), "a_b_c_.txt");
+        assert_eq!(safe_name("con.txt"), "_con.txt");
+        assert_eq!(safe_name(" ... "), "file");
+        assert_eq!(safe_name("IMG_0001.HEIC"), "IMG_0001.HEIC");
     }
 
     #[test]
