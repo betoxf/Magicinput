@@ -103,4 +103,15 @@ pub enum Msg {
     /// Only sent by MagicInput 0.4 (its trial status); ignored.
     Access { ok: bool },
     Ping,
+    /// The rest travel on a connection of their own (so a big file never holds up the pointer).
+    /// Sender -> receiver, instead of a hello: a file that arrived by AirDrop. The receiver takes
+    /// it if `force` (the sender's user is working on the receiver) or if it was used more
+    /// recently than the sender (`idle_ms` ago).
+    Offer { name: String, size: u64, force: bool, idle_ms: u64 },
+    /// Receiver -> sender: whether it takes the file.
+    Answer { accept: bool },
+    /// Sender -> receiver: the next piece of the file.
+    Data(Vec<u8>),
+    /// Receiver -> sender: the whole file is saved, so the sender can remove its copy.
+    Received,
 }

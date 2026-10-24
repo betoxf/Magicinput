@@ -25,6 +25,20 @@ impl Layout {
     }
 }
 
+/// Where files AirDropped to this Mac go.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AirDrop {
+    /// To the computer you were working on: they move to the other computer's Downloads folder
+    /// when that's the one you used last.
+    #[default]
+    Auto,
+    /// Always to the other computer.
+    Always,
+    /// They stay on this Mac.
+    Never,
+}
+
 pub const DEFAULT_PORT: u16 = 24842;
 const CODE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 
@@ -58,6 +72,8 @@ pub struct Config {
     /// This computer's own keyboard has been used, so clicking here never borrows the other
     /// computer's keyboard: each keyboard types on its own computer until the pointer crosses.
     pub has_keyboard: bool,
+    /// Where files AirDropped to this Mac go (Mac only).
+    pub airdrop: AirDrop,
     /// Arrangement from the settings window; `None` = auto / `peer_side`.
     pub layout: Option<Layout>,
     /// When `layout` last changed (unix ms), so both computers keep the newest.
@@ -84,6 +100,7 @@ impl Default for Config {
             show_tray: false,
             keyboard_follows_click: true,
             has_keyboard: false,
+            airdrop: AirDrop::Auto,
             layout: None,
             layout_time: 0,
             license: String::new(),

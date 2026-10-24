@@ -285,3 +285,20 @@ pub fn inject_key(hid: u16, down: bool) {
     };
     send(&[INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki } }]);
 }
+
+/// How long ago (ms) this computer's own keyboard or mouse was last used.
+pub fn idle_ms() -> u64 {
+    let mut info = LASTINPUTINFO { cbSize: size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+    unsafe {
+        if GetLastInputInfo(&mut info) == 0 {
+            return u64::MAX;
+        }
+        windows_sys::Win32::System::SystemInformation::GetTickCount().wrapping_sub(info.dwTime) as u64
+    }
+}
+
+/// Show a file in Explorer.
+pub fn reveal(path: &std::path::Path) {
+    use std::os::windows::process::CommandExt;
+    let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn();
+}

@@ -66,6 +66,7 @@ unsafe extern "C" {
     fn CGEventPost(tap: u32, e: Ref);
     fn CGEventSourceCreate(state: i32) -> Ref;
     fn CGEventSourceSetLocalEventsSuppressionInterval(source: Ref, seconds: f64);
+    fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
 
     fn CGWarpMouseCursorPosition(p: CGPoint) -> i32;
     fn CGAssociateMouseAndMouseCursorPosition(connected: u32) -> i32;
@@ -477,4 +478,15 @@ pub fn inject_key(hid: u16, down: bool) {
         }
         post(e, modifier_flags(&st.mods));
     }
+}
+
+/// How long ago (ms) this computer's own keyboard, mouse or trackpad was last used.
+pub fn idle_ms() -> u64 {
+    // HID system state, any input event type.
+    (unsafe { CGEventSourceSecondsSinceLastEventType(1, u32::MAX) } * 1000.0) as u64
+}
+
+/// Show a file in Finder.
+pub fn reveal(path: &std::path::Path) {
+    let _ = std::process::Command::new("open").arg("-R").arg(path).spawn();
 }
