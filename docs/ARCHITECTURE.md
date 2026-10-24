@@ -42,6 +42,7 @@ After the handshake both sides exchange `Hello` (name, OS, protocol version, scr
 | `Focus` | The sender was clicked with its own mouse: send your keys here (keyboard follows the click). |
 | `Layout` | The arrangement changed; the newest one wins. |
 | `Ping` | Keep-alive every second when idle; a silent link is dropped after 5 s. |
+| `Stream`, `Frame`, `Data`, `Pointer` | Magic windows, on a connection of their own opened with `Stream` instead of a hello. The Mac (`magicinput stream`, its own process) captures one window with ScreenCaptureKit and sends each new picture as a JPEG (`Frame`, then `Data` pieces); the PC shows it in a window of the service and sends back `Pointer` (points from the window's top left), `Button`, `Wheel` and `Key`, which the Mac plays into the window. Both sides ping when idle. |
 | `Offer`, `Answer`, `Data`, `Received` | A file AirDropped to the Mac, on a connection of its own (opened with `Offer` instead of a hello, so a big file never holds up the pointer). The PC takes it if the Mac's user is working on the PC, or if the PC was used more recently; the Mac removes its copy after `Received`. |
 
 Bursts of movement are merged before sending. On the receiving side, movement that arrives later than usual (Wi-Fi often holds packets) is queued, together with anything behind it, and replayed at double speed, so the pointer glides instead of jumping and clicks still land in the right place.

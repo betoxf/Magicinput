@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::core::{Core, Peer};
 use crate::proto::{Msg, Os, PROTOCOL_VERSION};
 
-type Res<T> = Result<T, Box<dyn Error + Send + Sync>>;
+pub type Res<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 const NOISE: &str = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s";
 const SERVICE: &str = "_magicinput._tcp.local.";
@@ -28,10 +28,8 @@ const MAX_FRAME: usize = 65535;
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// File connections wait longer: saving the end of a big file can take a while.
 const FILE_TIMEOUT: Duration = Duration::from_secs(30);
-// Only Macs send files (AirDrops) for now.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 /// File data per message (a frame holds 65535 bytes, minus encryption and message overhead).
-const CHUNK: usize = 60_000;
+pub const CHUNK: usize = 60_000;
 
 struct Active {
     generation: u64,
@@ -260,6 +258,12 @@ impl Net {
         if let Msg::Offer { name, size, force, idle_ms } = first {
             return receive_offer(&mut stream, &mut noise, &name, size, force, idle_ms);
         }
+        if let Msg::Stream { title, width, height } = first {
+            #[cfg(windows)]
+            return crate::viewer::show(stream, noise, title, width, height);
+            #[cfg(not(windows))]
+            return Err(format!("{title} ({width}x{height}): only a PC can show windows from the other computer").into());
+        }
         let Msg::Hello { id, name, os, version, peer_side, screens, layout, layout_time, .. } = first else {
             return Err("expected hello".into());
         };
@@ -326,18 +330,10 @@ impl Net {
             let port = self.found.lock().unwrap().get(&a.peer_id).map(|f| f.port);
             SocketAddr::new(a.stream.peer_addr()?.ip(), port.unwrap_or(self.cfg.read().unwrap().port))
         };
-        let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
-        stream.set_nodelay(true)?;
+        let psk = *self.psk.lock().unwrap();
+        let (mut stream, mut noise) = dial(addr, &psk)?;
         stream.set_read_timeout(Some(FILE_TIMEOUT))?;
         stream.set_write_timeout(Some(FILE_TIMEOUT))?;
-        let psk = *self.psk.lock().unwrap();
-        let mut noise = handshake(&mut stream, &psk, true)?;
-        let Msg::Hello { version, .. } = read_msg(&mut stream, &mut noise)? else {
-            return Err("expected hello".into());
-        };
-        if version != PROTOCOL_VERSION {
-            return Err(format!("the other computer runs protocol v{version}, we run v{PROTOCOL_VERSION}").into());
-        }
         offer_file(&mut stream, &mut noise, path, force, crate::platform::idle_ms())
     }
 
@@ -483,6 +479,37 @@ fn handshake(stream: &mut TcpStream, psk: &[u8; 32], initiator: bool) -> Res<Tra
         write_frame(stream, &buf[..n])?;
     }
     Ok(hs.into_transport_mode()?)
+}
+
+/// Open a connection of its own to the other computer's service (for a file or a window): the
+/// handshake and its hello. The caller sends what the connection is for next.
+pub fn dial(addr: SocketAddr, psk: &[u8; 32]) -> Res<(TcpStream, TransportState)> {
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
+    stream.set_nodelay(true)?;
+    stream.set_read_timeout(Some(TIMEOUT))?;
+    stream.set_write_timeout(Some(TIMEOUT))?;
+    let mut noise = handshake(&mut stream, psk, true)?;
+    let Msg::Hello { version, .. } = read_msg(&mut stream, &mut noise)? else {
+        return Err("expected hello".into());
+    };
+    if version != PROTOCOL_VERSION {
+        return Err(format!("the other computer runs protocol v{version}, we run v{PROTOCOL_VERSION}").into());
+    }
+    Ok((stream, noise))
+}
+
+/// For connections that read on one thread and write on another: wait for a message without
+/// holding the encryption state, then decrypt it.
+pub fn read_shared(stream: &mut TcpStream, noise: &Mutex<TransportState>) -> Res<Msg> {
+    let frame = read_frame(stream)?;
+    let mut buf = vec![0u8; frame.len()];
+    let n = noise.lock().unwrap().read_message(&frame, &mut buf)?;
+    Ok(postcard::from_bytes(&buf[..n])?)
+}
+
+/// Encrypt and send, holding the encryption state so messages go out in order.
+pub fn write_shared(stream: &mut TcpStream, noise: &Mutex<TransportState>, msg: &Msg) -> Res<()> {
+    write_msg(stream, &mut noise.lock().unwrap(), msg)
 }
 
 /// The other computer offers a file: take it into Downloads if its user is working here (or

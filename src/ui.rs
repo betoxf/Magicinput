@@ -14,7 +14,7 @@ use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Window, WindowBuilder};
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use wry::{WebView, WebViewBuilder};
 
@@ -47,6 +47,8 @@ enum UserEvent {
 struct Tray {
     _icon: TrayIcon,
     status: MenuItem,
+    /// Show the front window on the other computer, or stop (Mac only).
+    stream: MenuItem,
 }
 
 /// Start the settings window in its own process (at login only the icon, if it's turned on).
@@ -155,6 +157,8 @@ pub fn run(background: bool) {
     // The current panel has finished loading once (so it can be re-shown as is).
     let mut loaded = false;
     let mut closed_at = std::time::Instant::now() - Duration::from_secs(5);
+    // `magicinput stream`, while this Mac shows a window on the other computer.
+    let mut streaming: Option<std::process::Child> = None;
 
     event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::Wait;
@@ -196,6 +200,17 @@ pub fn run(background: bool) {
                     save(|c| c.show_tray = false);
                     tray = None;
                 }
+                "stream" => {
+                    let running = streaming.as_mut().is_some_and(|c| c.try_wait().ok().flatten().is_none());
+                    match streaming.take() {
+                        // Showing one already: stop (the copy on the other computer closes too).
+                        Some(mut child) if running => {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                        _ => streaming = std::env::current_exe().ok().and_then(|exe| Command::new(exe).arg("stream").spawn().ok()),
+                    }
+                }
                 _ => {}
             },
             Event::UserEvent(UserEvent::LoginChanged) => login = service::installed(),
@@ -203,6 +218,14 @@ pub fn run(background: bool) {
                 let st = status::read();
                 if let Some(t) = &tray {
                     t.status.set_text(status_line(&st));
+                    let running = streaming.as_mut().is_some_and(|c| c.try_wait().ok().flatten().is_none());
+                    let peer = st.as_ref().and_then(|s| s.peer.clone());
+                    t.stream.set_enabled(running || peer.is_some());
+                    t.stream.set_text(match (running, peer) {
+                        (true, _) => "Stop Showing the Window".into(),
+                        (false, Some(p)) => format!("Show Front Window on {p}"),
+                        (false, None) => "Show Front Window on the Other Computer".into(),
+                    });
                 }
                 if let Some((_, wv)) = &win {
                     names = monitor_names(target);
@@ -426,14 +449,17 @@ fn place(w: &Window, anchor: Option<tray_icon::Rect>, height: f64) {
 
 fn make_tray() -> Option<Tray> {
     let status = MenuItem::new("MagicInput", false, None);
+    let stream = MenuItem::with_id("stream", "Show Front Window on the Other Computer", false, None);
+    let (separator, settings) = (PredefinedMenuItem::separator(), MenuItem::with_id("settings", "Open MagicInput", true, None));
+    let hide = MenuItem::with_id("hide", if cfg!(target_os = "macos") { "Hide from Menu Bar" } else { "Hide Icon" }, true, None);
+    let mut items: Vec<&dyn IsMenuItem> = vec![&status, &separator, &settings];
+    // Magic windows: a Mac shows one of its windows on the PC.
+    if cfg!(target_os = "macos") {
+        items.push(&stream);
+    }
+    items.push(&hide);
     let menu = Menu::new();
-    menu.append_items(&[
-        &status,
-        &PredefinedMenuItem::separator(),
-        &MenuItem::with_id("settings", "Open MagicInput", true, None),
-        &MenuItem::with_id("hide", if cfg!(target_os = "macos") { "Hide from Menu Bar" } else { "Hide Icon" }, true, None),
-    ])
-    .ok()?;
+    menu.append_items(&items).ok()?;
     // On a Mac the icon is drawn as a template, so it follows the menu bar's light/dark look.
     #[cfg(target_os = "macos")]
     let builder = TrayIconBuilder::new().with_icon_templated(load_icon()?);
@@ -448,7 +474,7 @@ fn make_tray() -> Option<Tray> {
     #[cfg(target_os = "macos")]
     apply_symbol_icon(&icon);
     status.set_text(status_line(&status::read()));
-    Some(Tray { _icon: icon, status })
+    Some(Tray { _icon: icon, status, stream })
 }
 
 fn load_icon() -> Option<Icon> {

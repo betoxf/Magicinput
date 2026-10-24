@@ -114,4 +114,12 @@ pub enum Msg {
     Data(Vec<u8>),
     /// Receiver -> sender: the whole file is saved, so the sender can remove its copy.
     Received,
+    /// Instead of a hello, on a connection of its own: the sender (a Mac) shows one of its
+    /// windows on the receiver ("magic windows"). `Frame`s then come one way, and `Pointer`,
+    /// `Button`, `Wheel` and `Key` made in the copy go back; both sides send `Ping` when idle.
+    Stream { title: String, width: u32, height: u32 },
+    /// A JPEG of the window (`width` x `height` points), `len` bytes in the `Data` that follow.
+    Frame { width: u32, height: u32, len: u32 },
+    /// Where the pointer is in the streamed window, in points from its top left corner.
+    Pointer { x: f64, y: f64 },
 }

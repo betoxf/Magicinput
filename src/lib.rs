@@ -12,7 +12,11 @@ mod platform;
 mod proto;
 mod service;
 mod status;
+#[cfg(target_os = "macos")]
+mod stream;
 pub mod ui;
+#[cfg(windows)]
+mod viewer;
 
 use std::io::IsTerminal;
 
@@ -64,6 +68,12 @@ enum Cmd {
     Uninstall,
     /// Show the business license, or activate a license key from your download page
     License { key: Option<String> },
+    /// Show this Mac's front window on the other computer, until its copy there is closed
+    Stream {
+        /// Show a window of this app instead (part of its name)
+        #[arg(long)]
+        app: Option<String>,
+    },
 }
 
 /// `settings` opens the settings window. Each program passes how: the window itself (Mac, and
@@ -137,7 +147,30 @@ pub fn main_with(settings: fn(bool)) {
             Ok(m) => println!("{m}"),
             Err(e) => exit(&e),
         },
+        Cmd::Stream { app } => {
+            init_log("magicinput-stream.log");
+            #[cfg(target_os = "macos")]
+            if let Err(e) = stream::run(app) {
+                exit(&e);
+            }
+            #[cfg(not(target_os = "macos"))]
+            exit(&format!("Showing windows on the other computer works from a Mac for now{}", app.map(|a| format!(" ({a})")).unwrap_or_default()));
+        }
     }
+}
+
+/// Log to the terminal, or (started from the menu bar or Finder) to `file` next to the config.
+fn init_log(file: &str) {
+    let mut logger = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+    logger.format_target(false);
+    if !std::io::stderr().is_terminal() {
+        if let Ok(f) = std::fs::File::create(Config::path().with_file_name(file)) {
+            logger.target(env_logger::Target::Pipe(Box::new(f)));
+        }
+    } else {
+        logger.format_timestamp(None);
+    }
+    logger.init();
 }
 
 /// Run the background service (what `magicinput run` does).
@@ -152,18 +185,7 @@ pub fn packaged() -> bool {
 }
 
 fn run(mut cfg: Config) {
-    let mut logger = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
-    logger.format_target(false);
-    // Started from Finder/Explorer: no terminal to print to, so log next to the config.
-    if !std::io::stderr().is_terminal() {
-        let path = Config::path().with_file_name("magicinput.log");
-        if let Ok(f) = std::fs::File::create(&path) {
-            logger.target(env_logger::Target::Pipe(Box::new(f)));
-        }
-    } else {
-        logger.format_timestamp(None);
-    }
-    logger.init();
+    init_log("magicinput.log");
 
     if cfg.code.is_empty() {
         cfg.code = config::new_code();

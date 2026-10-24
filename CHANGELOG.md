@@ -11,6 +11,7 @@ All notable changes to MagicInput are documented here. The project follows [Sema
 
 ### Added
 
+- **Magic windows (preview): show a Mac window on the PC.** In the Mac's menu bar menu, **Show Front Window on <PC>** opens a live copy of the window in front on the PC (or run `magicinput stream`, `--app Safari` for a given app). Click, scroll and type in the copy and it happens in the window on the Mac; close the copy, or choose **Stop Showing the Window**, to end it. The first time, allow MagicInput under Screen & System Audio Recording in the Mac's Privacy & Security settings. Pictures go over as JPEGs at up to 30 frames a second, only when the window changes, on a connection of their own.
 - **AirDrop to the PC.** Files AirDropped to the Mac move on to the PC's Downloads folder (and show in Explorer) when you were working on the PC: the pointer is there, or the PC's own keyboard or mouse was used more recently than the Mac's. Set `airdrop = "always"` or `"never"` in the Mac's config file to change that. They travel encrypted over a connection of their own, so the pointer stays smooth. The first time, macOS asks to let MagicInput access the Downloads folder. Both computers need this version.
 
 ## [0.5.0] - 2026-10-19

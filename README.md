@@ -47,6 +47,7 @@ Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. Ma
 | Arrange like System Settings | Drag the PC next to your displays, iPad (Sidecar) included, and move the iPad itself. The pointer crosses only where the screens touch, at the matching height. |
 | Keyboard follows the click | No keyboard on the PC? Click into a text field with its own mouse and keep typing on the Mac keyboard (and the other way round). |
 | Copy and paste across | Copied text follows the pointer to the other computer. |
+| Magic windows (preview) | Show a Mac window on the PC from the menu bar, and use it there: clicks, scrolling and typing go back to the Mac. |
 | AirDrop to the PC | AirDrop from your iPhone to the Mac while you're working on the PC, and the file lands in the PC's Downloads folder. |
 | Mac shortcuts on the PC | ⌘C copies on Windows (Ctrl and ⌘ swap automatically; can be turned off). |
 | Private and local | Finds the other computer on your network by itself. Encrypted end to end, paired with a short code, refuses anything outside your local network. No account, no cloud, no telemetry. |
