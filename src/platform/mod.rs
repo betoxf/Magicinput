@@ -1,6 +1,6 @@
 //! OS-specific input capture and injection. Each backend exposes the same free functions:
 //! `init`, `run_capture`, `cleanup`, `displays`, `warp`, `grab_begin`, `grab_end`,
-//! `inject_move`, `inject_button`, `inject_wheel`, `inject_key`.
+//! `inject_move`, `inject_button`, `inject_wheel`, `inject_key`, `idle_ms`, `reveal`.
 
 use std::sync::OnceLock;
 

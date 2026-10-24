@@ -153,6 +153,20 @@ impl Core {
         self.mode.load(Ordering::SeqCst) == REMOTE
     }
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // used by the AirDrop relay
+    /// Whether the person is working on the other computer right now (`Some(true)`: this
+    /// keyboard or mouse goes there), on this one (`Some(false)`: the other computer's input
+    /// drives this one), or it isn't clear (`None`: each computer uses its own).
+    pub fn using_peer(&self) -> Option<bool> {
+        let st = self.st.lock().unwrap();
+        match self.mode.load(Ordering::SeqCst) {
+            REMOTE => Some(true),
+            CONTROLLED => Some(false),
+            _ if st.keys_to_peer => Some(true),
+            _ => None,
+        }
+    }
+
     fn send(&self, m: Msg) {
         let _ = self.out.send(m);
     }
