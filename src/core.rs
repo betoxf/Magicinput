@@ -46,6 +46,7 @@ pub enum LocalEvent {
 
 pub struct Peer {
     pub name: String,
+    pub addr: Option<std::net::IpAddr>,
     pub os: Os,
     pub side_hint: Option<Side>,
     /// Its screens, in logical units.
@@ -636,6 +637,7 @@ impl Core {
         crate::status::Status {
             peer: st.peer.as_ref().map(|p| p.name.clone()),
             peer_os: st.peer.as_ref().map(|p| format!("{:?}", p.os)),
+            peer_addr: st.peer.as_ref().and_then(|p| p.addr).map(|a| a.to_string()),
             side: st.side.map(|s| format!("{s:?}").to_lowercase()),
             controlling: mode == REMOTE,
             controlled: mode == CONTROLLED,
@@ -789,7 +791,7 @@ mod tests {
     fn connected(has_keyboard: bool) -> (Core, crossbeam_channel::Receiver<Msg>) {
         let (tx, rx) = crossbeam_channel::unbounded();
         let core = Core::new(Config { has_keyboard, ..Config::default() }, tx);
-        core.on_connect(Peer { name: "PC".into(), os: Os::Windows, side_hint: None, screens: vec![], layout: None, layout_time: 0 });
+        core.on_connect(Peer { name: "PC".into(), addr: None, os: Os::Windows, side_hint: None, screens: vec![], layout: None, layout_time: 0 });
         (core, rx)
     }
 

@@ -5,7 +5,7 @@
 //! is closed or the window goes away.
 
 use std::collections::HashSet;
-use std::net::{SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex};
@@ -175,17 +175,23 @@ fn configuration(frame: CGRect) -> Retained<SCStreamConfiguration> {
     }
 }
 
-/// The other computer's address: the fixed one from the config, or found on the network.
+/// The other computer's address: the fixed one from the config, the one the service is
+/// connected to, or found on the network.
 fn peer_addr(cfg: &Config) -> Result<SocketAddr, String> {
-    let host = match &cfg.peer_addr {
-        Some(a) => a.split(':').next().unwrap_or(a).to_string(),
-        None => net::discover(cfg, Duration::from_millis(1500))
+    let connected = crate::status::read().and_then(|s| s.peer_addr);
+    let host = match (&cfg.peer_addr, connected) {
+        (Some(a), _) => a.split(':').next().unwrap_or(a).to_string(),
+        (None, Some(ip)) => ip,
+        (None, None) => net::discover(cfg, Duration::from_secs(3))
             .into_iter()
             .find(|n| n.same_code)
             .and_then(|n| n.address)
             .ok_or("the other computer isn't on the network")?,
     };
-    format!("{host}:{}", cfg.port).parse().map_err(|e| format!("{host}: {e}"))
+    match host.parse::<std::net::IpAddr>() {
+        Ok(ip) => Ok(SocketAddr::new(ip, cfg.port)),
+        Err(_) => (host.as_str(), cfg.port).to_socket_addrs().ok().and_then(|mut a| a.next()).ok_or(format!("can't find {host}")),
+    }
 }
 
 pub fn run(app: Option<String>) -> Result<(), String> {

@@ -296,7 +296,8 @@ impl Net {
             });
         }
         info!("Secure connection with {name} ({})", stream.peer_addr()?);
-        self.core.on_connect(Peer { name, os, side_hint: peer_side, screens, layout, layout_time });
+        let addr = Some(stream.peer_addr()?.ip());
+        self.core.on_connect(Peer { name, addr, os, side_hint: peer_side, screens, layout, layout_time });
 
         let r = (|| -> Res<()> {
             loop {

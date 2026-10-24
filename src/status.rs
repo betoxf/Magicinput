@@ -12,6 +12,8 @@ use crate::config::Config;
 pub struct Status {
     pub peer: Option<String>,
     pub peer_os: Option<String>,
+    /// The other computer's IP address, so helpers like `magicinput stream` can reach it.
+    pub peer_addr: Option<String>,
     /// Effective side of the other computer ("left", ...); `None` = auto.
     pub side: Option<String>,
     pub controlling: bool,
