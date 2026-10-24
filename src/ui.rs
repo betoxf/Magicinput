@@ -446,7 +446,7 @@ fn make_tray() -> Option<Tray> {
         .build()
         .ok()?;
     #[cfg(target_os = "macos")]
-    apply_symbol_icon(&icon);
+    apply_vector_icon(&icon);
     status.set_text(status_line(&status::read()));
     Some(Tray { _icon: icon, status })
 }
@@ -455,44 +455,37 @@ fn load_icon() -> Option<Icon> {
     decode_icon(TRAY_PNG)
 }
 
-/// Give the Mac menu bar icon a live vector image made of SF Symbols, so macOS draws it at the
-/// screen's exact resolution like its own icons: two screens (`rectangle.on.rectangle`) with
-/// the pointer crossing and a sparkle. (SF Symbols are for Apple platforms only; Windows and
-/// older Macs keep the bundled icon.)
+/// Give the Mac menu bar icon a live vector image, so macOS draws it at the screen's exact
+/// resolution like its own icons: the app icon's two overlapping squares, the overlap cut out.
+/// (Windows keeps the bundled icon.)
 #[cfg(target_os = "macos")]
-fn apply_symbol_icon(tray: &TrayIcon) -> Option<()> {
+fn apply_vector_icon(tray: &TrayIcon) -> Option<()> {
     use block2::RcBlock;
     use objc2::MainThreadMarker;
     use objc2::runtime::Bool;
-    use objc2_app_kit::{NSCompositingOperation, NSImage, NSImageSymbolConfiguration};
-    use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
+    use objc2_app_kit::{NSBezierPath, NSColor, NSImage, NSWindingRule};
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
 
     let mtm = MainThreadMarker::new()?;
     let button = tray.ns_status_item()?.button(mtm)?;
-    let symbol = |name: &str, size: f64, weight: f64| {
-        let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(name), None)?;
-        image.imageWithSymbolConfiguration(&NSImageSymbolConfiguration::configurationWithPointSize_weight(size, weight))
-    };
-    // Font weights: regular 0, semibold 0.3, bold 0.4.
-    let screens = symbol("rectangle.on.rectangle", 12.5, 0.0)?;
-    let pointer = symbol("cursorarrow", 7.0, 0.3)?;
-    let sparkle = symbol("sparkle", 5.5, 0.4)?;
-    let (w, h) = (25.0, 18.0);
-
-    // Runs whenever macOS draws the icon, at whatever resolution it needs. Positions are on
-    // whole points so edges land on pixels.
+    // The proportions of installer/make-icons.py (a square of 360 and a second one 154 right and
+    // 52 down, corners of 86), with 12-point squares.
+    let s = 12.0;
+    let (dx, dy, r) = (s * 154.0 / 360.0, s * 52.0 / 360.0, s * 86.0 / 360.0);
+    let (w, h) = (18.0, 16.0);
+    // Runs whenever macOS draws the icon, at whatever resolution it needs.
     let handler = RcBlock::new(move |_: NSRect| -> Bool {
-        let draw = |image: &NSImage, x: f64, y: f64, op: NSCompositingOperation, grow: f64| {
-            let s = image.size();
-            let rect = NSRect::new(NSPoint::new(x - grow, y - grow), NSSize::new(s.width + 2.0 * grow, s.height + 2.0 * grow));
-            image.drawInRect_fromRect_operation_fraction(rect, NSRect::ZERO, op, 1.0);
+        let half = |v: f64| (v * 2.0).round() / 2.0;
+        let (x0, y0) = (half((w - s - dx) / 2.0), half((h - s - dy) / 2.0));
+        let square = |x: f64, y: f64| {
+            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(NSRect::new(NSPoint::new(x, y), NSSize::new(s, s)), r, r)
         };
-        let ss = screens.size();
-        draw(&screens, (w - ss.width).round(), ((h - ss.height) / 2.0).round(), NSCompositingOperation::SourceOver, 0.0);
-        // A thin gap around the pointer so it reads clearly over the screens.
-        draw(&pointer, 5.0, 1.0, NSCompositingOperation::DestinationOut, 1.0);
-        draw(&pointer, 5.0, 1.0, NSCompositingOperation::SourceOver, 0.0);
-        draw(&sparkle, 0.0, (h - sparkle.size().height - 1.0).round(), NSCompositingOperation::SourceOver, 0.0);
+        // y grows upwards here, so the first (left) square is the higher one.
+        let path = square(x0, y0 + dy);
+        path.appendBezierPath(&square(x0 + dx, y0));
+        path.setWindingRule(NSWindingRule::EvenOdd);
+        NSColor::blackColor().setFill();
+        path.fill();
         Bool::YES
     });
     let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(w, h), false, &handler);

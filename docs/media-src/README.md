@@ -1,5 +1,7 @@
 # README images
 
+The app icon and every image made from it (`assets/*.icns`, `*.ico`, the menu bar and tray images, the brand icon, the Store logos) come from `installer/make-icons.py`; run `installer/make-art.py` after it for the installer artwork.
+
 The images in `images/` and `assets/brand/` are rendered from these pages with headless Chrome, using sample data (no personal screens or wallpapers). `panel-demo.html` is `src/ui.html` plus sample data; regenerate it after UI changes.
 
 ```bash
