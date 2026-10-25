@@ -1,11 +1,12 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/brand/magicinput-logo-dark.png">
-    <img src="assets/brand/magicinput-logo.png" alt="MagicInput" width="760">
+    <img src="assets/brand/magicinput-logo.png" alt="MagicInput: share one keyboard and mouse between a Mac and a Windows PC" width="760">
   </picture>
 
   <p><strong>Use one keyboard and mouse across your Mac and your Windows PC.</strong></p>
   <p>Push the pointer off the edge of one screen and keep going on the other. Type, click, scroll, copy and paste, as if it were one computer. Like Universal Control, for PCs.</p>
+  <p>Free for personal use and open source. A simple Mac and PC alternative to Synergy, ShareMouse and Mouse Without Borders, with copy and paste and AirDrop to your PC.</p>
 
   <p>
     <a href="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml"><img src="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build"></a>
@@ -21,6 +22,8 @@
     <a href="#quick-start">Quick start</a> ·
     <a href="#set-it-up-with-an-ai-assistant">Set up with AI</a> ·
     <a href="#how-it-works">How it works</a> ·
+    <a href="#compared-with-other-tools">Compared</a> ·
+    <a href="#faq">FAQ</a> ·
     <a href="PRICING.md">Pricing</a> ·
     <a href="CHANGELOG.md">Changelog</a> ·
     <a href="docs/ARCHITECTURE.md">Architecture</a> ·
@@ -148,6 +151,49 @@ See [Architecture](docs/ARCHITECTURE.md) for the details.
 - **Choppy pointer over Wi-Fi?** macOS uses a side channel (AWDL, for AirDrop, Sidecar and Universal Control) that pauses Wi-Fi for ~85 ms twice a second when your router is on a different 5 GHz channel. Setting the router's 5 GHz channel to **149** removes those pauses.
 - **Can't click an admin window on the PC?** Windows blocks input into elevated apps unless the sender is elevated too; the installer's admin prompt takes care of this.
 - **Discovery blocked on your network?** Point one computer at the other: `magicinput peer 192.168.1.20`.
+
+## Compared with other tools
+
+| | Mac and Windows together | Price | Setup |
+| --- | --- | --- | --- |
+| **MagicInput** | Yes | Free for personal use | Install on both computers and type a pairing code |
+| Apple Universal Control | No (Mac and iPad only) | Free | Built into macOS |
+| Mouse Without Borders (PowerToys) | No (Windows only) | Free | Part of PowerToys |
+| Synergy | Yes, plus Linux | Paid | Choose a server and clients, name the screens |
+| Deskflow, Input Leap | Yes, plus Linux | Free, open source | Choose a server and clients, name the screens |
+| ShareMouse | Yes | Free with limits, paid for more | Install on each computer |
+
+MagicInput is made for one Mac and one Windows PC. There's no server to configure and no screen names: it finds the other computer by itself, and you arrange the screens the way System Settings does, iPad included. It also brings Mac habits to the PC (⌘C copies there too) and passes AirDrops on to the PC. If you need Linux or more than two computers, Deskflow and Synergy are great choices.
+
+## FAQ
+
+### How do I use one keyboard and mouse with a Mac and a Windows PC?
+
+Install MagicInput on both computers and pair them with the code shown in the panel (see [Quick start](#quick-start)). Then push the pointer past the edge of the Mac's screen: it continues on the PC, and the keyboard follows it.
+
+### Is MagicInput a free alternative to Synergy, ShareMouse or Mouse Without Borders?
+
+Yes, for a Mac and a PC. It's free for personal use with every feature, and the source is public. Businesses buy one license for all their computers ([pricing](PRICING.md)).
+
+### Does Universal Control work with Windows?
+
+No. Apple's Universal Control only links Macs and iPads. MagicInput brings the same push-past-the-edge feel to a Windows PC.
+
+### Can I AirDrop from my iPhone to a Windows PC?
+
+Windows can't receive AirDrop, but MagicInput passes it on: AirDrop a photo or file to your Mac while you're working on the PC, and it lands in the PC's Downloads folder.
+
+### Can I copy and paste between a Mac and a PC?
+
+Yes. Copied text goes with the pointer to the other computer, and ⌘C / ⌘V work on the PC too (Ctrl and ⌘ swap automatically).
+
+### Is it secure? Does it need the internet or an account?
+
+No internet, no account, no cloud. The two computers talk only on your local network, encrypted end to end with your pairing code. Connections from outside your network are refused. See [Privacy and security](#privacy-and-security).
+
+### Does it work on Linux, or with more than two computers?
+
+Not yet. MagicInput is for one Mac and one Windows PC (Windows 10 or 11, macOS 13 or newer).
 
 ## Privacy and security
 
