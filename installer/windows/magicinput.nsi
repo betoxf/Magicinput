@@ -25,7 +25,7 @@ VIAddVersionKey "CompanyName" "Bullfighter Studio"
 VIAddVersionKey "FileDescription" "MagicInput Setup"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
-VIAddVersionKey "LegalCopyright" "Copyright 2026 Bullfighter Studio. GPL-3.0 source code."
+VIAddVersionKey "LegalCopyright" "Copyright 2026 Bullfighter Studio. PolyForm Noncommercial 1.0.0."
 
 !define MUI_ICON "..\..\assets\MagicInput.ico"
 !define MUI_UNICON "..\..\assets\MagicInput.ico"

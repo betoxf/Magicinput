@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json
+
+PackageIdentifier: BullfighterStudio.MagicInput
+PackageVersion: 0.6.2
+MinimumOSVersion: 10.0.17763.0
+InstallerType: nullsoft
+Scope: user
+ElevationRequirement: elevatesSelf
+UpgradeBehavior: install
+ReleaseDate: 2026-10-25
+AppsAndFeaturesEntries:
+- DisplayName: MagicInput
+  Publisher: Bullfighter Studio
+  DisplayVersion: 0.6.2
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/betoxf/Magicinput/releases/download/v0.6.2/MagicInput-Setup.exe
+  InstallerSha256: 9F31BAA7FFBE5631B4832D7FA0F0ABDD2C9D5B5A962A923F3CF4714BFC4468E0
+ManifestType: installer
+ManifestVersion: 1.10.0

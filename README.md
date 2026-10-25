@@ -39,6 +39,10 @@
   </picture>
 </p>
 
+<p align="center">
+  <img src="images/demo.gif" alt="Demo: the pointer moves from a Mac to a Windows PC, typing and copy and paste follow it, and a photo AirDropped from an iPhone lands in the PC's Downloads" width="880">
+</p>
+
 ## Why MagicInput
 
 Your Mac's keyboard and trackpad are right there, and so is the PC's monitor. MagicInput lets one set of hands drive both, without a hardware switch or a cloud account.
