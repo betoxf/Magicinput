@@ -40,7 +40,7 @@ windows = { version = "0.62", features = ["ApplicationModel"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSBitmapImageRep", "NSButton", "NSControl", "NSFontDescriptor", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSResponder", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSView", "NSWorkspace", "block2", "objc2-core-foundation"] }
+objc2-app-kit = { version = "0.3", features = ["NSBezierPath", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSFontDescriptor", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSResponder", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSView", "NSWorkspace", "block2", "objc2-core-foundation"] }
 objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSGeometry", "NSEnumerator", "NSURL", "NSDictionary", "NSData"] }
 
 [profile.release]

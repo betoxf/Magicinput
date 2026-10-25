@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+
+- **New icon:** two overlapping squares, simpler and clearer at small sizes, in the Dock, the menu bar, the Windows tray and the installers.
+
 ## [0.6.0] - 2026-10-25
 
 ### Changed
