@@ -2,7 +2,7 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.6.2] - 2026-10-25
 
 ### Changed
 
@@ -104,6 +104,7 @@ First public release (superseded by 0.1.1; its downloads were withdrawn).
 - Signed and notarized universal macOS app; Windows build with its own icon.
 
 
+[0.6.2]: https://github.com/betoxf/Magicinput/releases/tag/v0.6.2
 [0.6.1]: https://github.com/betoxf/Magicinput/releases/tag/v0.6.1
 [0.6.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.6.0
 [0.5.0]: https://github.com/betoxf/Magicinput/releases/tag/v0.5.0
