@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 cask "magicinput" do
-  version "0.6.1"
-  sha256 "32f9b4a0533fc319e31baaf018f1fc3bfd0eee3ed345b805a683938d359b3aae"
+  version "0.6.2"
+  sha256 "69514d9433a96199d912d1045b2de0e644e50c869233f8f555ddab8af7d130b7"
 
   url "https://github.com/betoxf/Magicinput/releases/download/v#{version}/MagicInput-macOS.zip"
   name "MagicInput"
