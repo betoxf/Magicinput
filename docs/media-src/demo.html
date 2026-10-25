@@ -1,0 +1,134 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+/* The README demo: an animated scene drawn by frame(t), so it renders the same every time
+   (render-demo.mjs steps t and saves each frame). */
+html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0d0d0f;
+  background: radial-gradient(circle at 15% 10%, #cfd6ff 0, transparent 55%), radial-gradient(circle at 95% 95%, #fbd5ea 0, transparent 50%), linear-gradient(135deg, #e3e6ff 0%, #f4f2ff 50%, #fbeaf4 100%); }
+.abs { position: absolute; }
+#caption { left: 0; right: 0; top: 48px; text-align: center; font-size: 40px; font-weight: 800; letter-spacing: -.035em; }
+#stage { inset: 0; }
+.screen { border: 8px solid #1c1c1f; border-radius: 14px; overflow: hidden; background-size: cover; background-position: center; }
+#mac { left: 140px; top: 200px; width: 440px; height: 280px; background-image: linear-gradient(135deg, #1e3a8a, #7c3aed 55%, #f472b6); }
+#mac .menubar { left: 0; right: 0; top: 0; height: 14px; background: rgba(255,255,255,.55); }
+#mac .dock { left: 30%; right: 30%; bottom: 8px; height: 22px; border-radius: 7px; background: rgba(255,255,255,.4);
+  background-image: radial-gradient(circle, rgba(255,255,255,.95) 0 6px, transparent 7px); background-size: 20% 100%; background-repeat: repeat-x; background-position: center; }
+#macbase { left: 100px; top: 494px; width: 536px; height: 16px; background: #c7c7cc; clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%); border-radius: 2px; }
+#pc { left: 690px; top: 180px; width: 460px; height: 300px; }
+#pcstand { left: 908px; top: 494px; width: 10px; height: 34px; background: #8e8e93; border-radius: 5px; }
+#pcfoot { left: 860px; top: 524px; width: 106px; height: 10px; background: #8e8e93; border-radius: 5px; }
+.win { background: #fff; border-radius: 9px; box-shadow: 0 10px 30px rgba(0,0,0,.25); overflow: hidden; }
+.win .title { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px; font-size: 13px; font-weight: 600; background: #f3f4f6; }
+.lights i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; }
+.body { padding: 14px 16px; font-size: 18px; line-height: 1.5; }
+.sel { background: #bfdbfe; }
+#pcnotes { left: 760px; top: 230px; width: 320px; height: 170px; }
+#macnotes { left: 190px; top: 245px; width: 300px; height: 150px; }
+#downloads { left: 744px; top: 215px; width: 352px; height: 200px; }
+.row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 0 8px; border-radius: 7px; font-size: 14px; }
+.row .thumb { width: 30px; height: 24px; border-radius: 4px; background: #e5e7eb; }
+.row small { display: block; font-size: 12px; color: rgba(13,13,15,.5); }
+.row.new { background: #dbeafe; outline: 1.5px solid #60a5fa; }
+.photo { background: linear-gradient(180deg, #fdba74, #f472b6); }
+#phone { left: 40px; top: 380px; width: 82px; height: 166px; border: 6px solid #1c1c1f; border-radius: 20px; background: linear-gradient(180deg, #fdba74, #f472b6); }
+#phone::before { content: ''; position: absolute; left: 30px; top: 7px; width: 22px; height: 6px; border-radius: 3px; background: #1c1c1f; }
+#card { width: 64px; height: 50px; border-radius: 7px; background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,.25); }
+#card::after { content: ''; position: absolute; inset: 5px; border-radius: 4px; background: linear-gradient(180deg, #fdba74, #f472b6); }
+#toast { left: 330px; top: 222px; width: 236px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.9); box-shadow: 0 8px 20px rgba(0,0,0,.18); font-size: 12px; }
+#toast b { display: block; font-size: 12.5px; }
+.chip { padding: 8px 14px; border-radius: 10px; background: #0d0d0f; color: #fff; font-size: 20px; font-weight: 700; }
+#cursor { width: 26px; height: 38px; }
+#click { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(37,99,235,.8); }
+#card2 { left: 0; top: 0; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+#card2 svg { width: 120px; height: 120px; filter: drop-shadow(0 10px 22px rgba(0,0,0,.16)); }
+#card2 h1 { margin: 18px 0 0; font-size: 64px; letter-spacing: -.05em; }
+#card2 p { margin: 10px 0 0; font-size: 24px; color: rgba(13,13,15,.6); }
+#card2 .small { margin-top: 18px; font-size: 18px; color: rgba(13,13,15,.5); }
+</style></head><body>
+<div id="caption" class="abs"></div>
+<div id="stage" class="abs">
+  <div id="mac" class="abs screen"><div class="abs menubar"></div><div class="abs dock"></div></div>
+  <div id="macbase" class="abs"></div>
+  <div id="pc" class="abs screen"></div><div id="pcstand" class="abs"></div><div id="pcfoot" class="abs"></div>
+  <div id="pcnotes" class="abs win"><div class="title">Notes</div><div class="body" id="pctext"></div></div>
+  <div id="macnotes" class="abs win"><div class="title lights"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>Notes</div><div class="body" id="mactext"></div></div>
+  <div id="downloads" class="abs win"><div class="title">📁&nbsp;Downloads</div>
+    <div class="row new" id="newrow"><span class="thumb photo"></span><span><b>IMG_2048.HEIC</b><small>Just now · from your iPhone</small></span></div>
+    <div class="row"><span class="thumb"></span><span>budget.xlsx<small>Yesterday</small></span></div>
+    <div class="row"><span class="thumb"></span><span>notes.pdf<small>Monday</small></span></div></div>
+  <div id="toast" class="abs"><b>MagicInput</b>Sending IMG_2048.HEIC to your PC…</div>
+  <div id="phone" class="abs"></div>
+  <div id="card" class="abs"></div>
+  <div id="chip" class="abs chip"></div>
+  <div id="click" class="abs"></div>
+  <svg id="cursor" class="abs" viewBox="0 0 26 38"><path d="M2 2 V30 L9 23.4 L13.8 34 L18.4 31.9 L13.6 21.6 L23 21 Z" fill="#111" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/></svg>
+</div>
+<div id="card2" class="abs">
+  <svg viewBox="96 96 832 832"><defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E6E9"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" stroke="rgba(0,0,0,.08)" stroke-width="6"/><path d="M341 306 H529 A86 86 0 0 1 615 392 V580 A86 86 0 0 1 529 666 H341 A86 86 0 0 1 255 580 V392 A86 86 0 0 1 341 306 Z M495 358 H683 A86 86 0 0 1 769 444 V632 A86 86 0 0 1 683 718 H495 A86 86 0 0 1 409 632 V444 A86 86 0 0 1 495 358 Z" fill="#111114" fill-rule="evenodd"/></svg>
+  <h1>MagicInput</h1>
+  <p id="cardline">One keyboard and mouse for your Mac and PC.</p>
+  <div class="small" id="cardsmall">Free for personal use · github.com/betoxf/Magicinput</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const clamp = v => Math.max(0, Math.min(1, v));
+const ease = v => { v = clamp(v); return v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2; };
+// 0 -> 1 between a and b (eased), and a fade that is 1 from a to b with short ramps.
+const prog = (t, a, b) => ease((t - a) / (b - a));
+const fade = (t, a, b, r = .3) => clamp(Math.min((t - a) / r, (b - t) / r));
+const lerp = (p, q, k) => p + (q - p) * k;
+const set = (id, o) => { const e = $(id); for (const [k, v] of Object.entries(o)) e.style[k] = typeof v === 'number' && k !== 'opacity' ? v + 'px' : v; };
+// Windows-style desktop for the PC (made up, no logo).
+$('pc').style.backgroundImage = `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="b" cx=".5" cy=".42" r=".85"><stop offset="0" stop-color="#a9dbff"/><stop offset=".42" stop-color="#2e7de0"/><stop offset="1" stop-color="#08245e"/></radialGradient><linearGradient id="p" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef8ff" stop-opacity=".9"/><stop offset="1" stop-color="#3a8ef0" stop-opacity=".15"/></linearGradient></defs><rect width="160" height="100" fill="url(#b)"/><g transform="translate(80 44)" fill="url(#p)"><ellipse rx="12" ry="28" transform="rotate(-36)"/><ellipse rx="12" ry="29"/><ellipse rx="12" ry="28" transform="rotate(36)"/><ellipse rx="10" ry="24" transform="rotate(-72)" opacity=".6"/><ellipse rx="10" ry="24" transform="rotate(72)" opacity=".6"/></g><rect y="91" width="160" height="9" fill="#0a1a3a" fill-opacity=".55"/><g fill="#fff" fill-opacity=".85"><rect x="66" y="93" width="5" height="5" rx="1.2"/><rect x="73" y="93" width="5" height="5" rx="1.2"/><rect x="80" y="93" width="5" height="5" rx="1.2"/><rect x="87" y="93" width="5" height="5" rx="1.2"/></g></svg>`)}')`;
+
+const TYPED = 'Hello from my Mac keyboard.';
+const captions = [[1.8, 5.0, 'Push the pointer past the edge.'], [5.0, 8.6, 'Keep typing, now on the PC.'],
+  [8.6, 12.4, 'Copy on one, paste on the other.'], [12.4, 18.6, 'AirDrop from your iPhone, straight to your PC.']];
+const END = 22;
+
+window.frame = t => {
+  // Title and end cards.
+  const intro = fade(t, -1, 1.6), outro = clamp((t - 19) / .4);
+  set('card2', { opacity: Math.max(intro, outro) });
+  $('cardline').textContent = t < 10 ? 'One keyboard and mouse for your Mac and PC.' : 'One keyboard and mouse. Mac and PC. AirDrop to your PC.';
+  $('cardsmall').style.opacity = t < 10 ? 0 : 1;
+  set('stage', { opacity: Math.min(clamp((t - 1.3) / .5), 1 - clamp((t - 18.6) / .4)) });
+  const cap = captions.find(([a, b]) => t >= a && t < b);
+  $('caption').textContent = cap ? cap[2] : '';
+  set('caption', { opacity: cap ? fade(t, cap[0], cap[1], .25) : 0 });
+
+  // The pointer: Mac -> PC, into the notes, back to the Mac.
+  let cx = 300, cy = 380, show = t > 1.9 && t < 12.6;
+  if (t < 3.6) { const k = prog(t, 2.2, 3.6); cx = lerp(300, 584, k); cy = lerp(380, 330, k); }
+  else if (t < 9.6) { const k = prog(t, 3.65, 4.6); cx = lerp(700, 905, k); cy = lerp(330, 300, k); }
+  else if (t < 10.25) { const k = prog(t, 9.6, 10.2); cx = lerp(905, 700, k); cy = lerp(300, 330, k); }
+  else { const k = prog(t, 10.3, 10.9); cx = lerp(584, 360, k); cy = lerp(330, 335, k); }
+  set('cursor', { left: cx, top: cy, opacity: show ? 1 : 0 });
+  const clickAt = [4.8, 8.8, 11.0].find(c => t >= c && t < c + .45);
+  set('click', { left: cx - 17, top: cy - 17, opacity: clickAt ? 1 - (t - clickAt) / .45 : 0, transform: `scale(${clickAt ? .6 + (t - clickAt) : 1})` });
+
+  // Notes on the PC: typing, then selecting.
+  set('pcnotes', { opacity: Math.min(clamp((t - 4.3) / .3), 1 - clamp((t - 12.4) / .3)) });
+  const n = Math.floor(clamp((t - 5.4) / 2.4) * TYPED.length);
+  const typed = TYPED.slice(0, n) + (t > 5.2 && t < 8.0 && Math.floor(t * 2.5) % 2 ? '|' : '');
+  $('pctext').innerHTML = t > 9.0 ? `<span class="sel">${TYPED}</span>` : typed;
+  // Notes on the Mac: pasted.
+  set('macnotes', { opacity: Math.min(clamp((t - 10.2) / .3), 1 - clamp((t - 12.4) / .3)) });
+  $('mactext').textContent = t > 11.3 ? TYPED : '';
+  const chip = t >= 9.2 && t < 9.9 ? ['⌘C', 900, 420] : t >= 11.0 && t < 11.7 ? ['⌘V', 330, 410] : null;
+  set('chip', { opacity: chip ? 1 : 0, left: chip ? chip[1] : 0, top: chip ? chip[2] : 0 });
+  if (chip) $('chip').textContent = chip[0];
+
+  // AirDrop: iPhone -> Mac -> PC's Downloads.
+  set('phone', { opacity: clamp((t - 12.6) / .4), transform: `translateX(${(1 - prog(t, 12.6, 13.2)) * -60}px)` });
+  let card = null;
+  if (t >= 13.4 && t < 14.6) { const k = prog(t, 13.4, 14.6); card = [lerp(70, 330, k), lerp(430, 330, k) - Math.sin(k * Math.PI) * 120]; }
+  else if (t >= 14.6 && t < 15.0) card = [330, 330];
+  else if (t >= 15.0 && t < 16.0) { const k = prog(t, 15.0, 16.0); card = [lerp(330, 790, k), lerp(330, 270, k) - Math.sin(k * Math.PI) * 140]; }
+  set('card', { opacity: card ? 1 : 0, left: card ? card[0] : 0, top: card ? card[1] : 0, transform: `rotate(${card ? Math.sin(t * 3) * 8 : 0}deg)` });
+  set('toast', { opacity: fade(t, 14.4, 16.2, .25) });
+  set('downloads', { opacity: Math.min(clamp((t - 15.7) / .3), 1) * (t < 19 ? 1 : 0) });
+  set('newrow', { opacity: clamp((t - 16.0) / .3) });
+};
+window.DURATION = END;
+frame(0);
+</script>
+</body></html>

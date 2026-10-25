@@ -23,3 +23,9 @@ r "logo.html?dark" 760,200 assets/brand/magicinput-logo-dark.png
 # Release / social image for AirDrop to the PC (1200x630):
 r airdrop.html 1200,630 images/airdrop-to-pc.png
 ```
+
+The demo (`images/demo.mp4` and `images/demo.gif`) is `demo.html` played frame by frame:
+
+```bash
+NODE_PATH=$(npm root -g)/@playwright/mcp/node_modules node docs/media-src/render-demo.mjs
+```

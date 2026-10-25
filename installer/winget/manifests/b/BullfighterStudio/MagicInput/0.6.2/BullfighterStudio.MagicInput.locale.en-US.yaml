@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+
+PackageIdentifier: BullfighterStudio.MagicInput
+PackageVersion: 0.6.2
+PackageLocale: en-US
+Publisher: Bullfighter Studio
+PublisherUrl: https://bullfighterstudio.com
+PublisherSupportUrl: https://github.com/betoxf/Magicinput/issues
+PackageName: MagicInput
+PackageUrl: https://bullfighterstudio.com/magicinput
+License: PolyForm Noncommercial 1.0.0 (free for personal use; business license available)
+LicenseUrl: https://github.com/betoxf/Magicinput/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Bullfighter Studio
+ShortDescription: Use one keyboard and mouse across your Mac and Windows PC.
+Description: |-
+  MagicInput shares one keyboard and mouse between a Mac and a Windows PC. Push the pointer off the edge of one screen and keep going on the other: type, click, scroll, copy and paste as if it were one computer.
+  It finds the other computer on your local network, pairs with a short code and encrypts everything end to end. Copied text follows the pointer, Ctrl and Cmd swap automatically, and photos AirDropped to the Mac can land in the PC's Downloads folder.
+  Free for personal use with every feature. Install MagicInput on the Mac too (MagicInput.dmg on the releases page, or Homebrew).
+Moniker: magicinput
+Tags:
+- airdrop
+- clipboard
+- cross-platform
+- keyboard
+- kvm
+- mac
+- macos
+- mouse
+- mouse-sharing
+- software-kvm
+- synergy-alternative
+ReleaseNotesUrl: https://github.com/betoxf/Magicinput/releases/tag/v0.6.2
+Documentations:
+- DocumentLabel: Quick start
+  DocumentUrl: https://github.com/betoxf/Magicinput#quick-start
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0
