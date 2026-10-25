@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+
+- **Easier to tell the screens apart in the panel.** The other computer shows a look-alike picture instead of a black box: a blue Windows desktop with a taskbar, or a Mac desktop with a menu bar and Dock, with its name small at the bottom. The Mac's main screen shows its Dock, and a PC's own screens get the Windows look too.
+
 ## [0.6.1] - 2026-10-25
 
 ### Changed

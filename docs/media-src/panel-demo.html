@@ -87,6 +87,11 @@
   .scr .glass { position: absolute; inset: 0; border-radius: 5px; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.05)); }
   .scr.main .bar { position: absolute; top: 0; left: 0; right: 0; height: 9%; min-height: 3px; border-radius: 5px 5px 0 0;
     background: rgba(255,255,255,.55); backdrop-filter: blur(4px); }
+  .scr .dock { display: none; position: absolute; left: 31%; right: 31%; bottom: 5%; height: 10%; min-height: 3px; border-radius: 3px;
+    background: radial-gradient(circle, rgba(255,255,255,.95) 0 34%, transparent 40%) center / 20% 100% repeat-x, rgba(255,255,255,.4);
+    backdrop-filter: blur(4px); }
+  .scr.main .dock { display: block; }
+  [data-os=windows] .scr .bar, [data-os=windows] .scr .dock { display: none; }
   .scr.movable, .peer { cursor: grab; }
   .scr.movable:hover, .peer:hover { box-shadow: 0 0 0 1.5px var(--accent), 0 4px 12px rgba(0,0,0,.22); }
   .peer { position: absolute; border-radius: 5px; color: var(--peer-text); font-size: 10px; font-weight: 600;
@@ -94,6 +99,10 @@
     background: linear-gradient(160deg, var(--peer-a), var(--peer-b)); box-shadow: 0 0 0 .5px var(--screen-edge), 0 4px 12px rgba(0,0,0,.25);
     transition: left .2s, top .2s, box-shadow .15s; }
   .peer .glyph { opacity: .85; }
+  /* A look-alike picture for the other computer, so it's clear which one it is. */
+  .peer.art { background: #1f5fbf center / cover no-repeat; color: #fff; }
+  .peer.art .glyph { position: absolute; left: 0; right: 0; bottom: 18%; font-size: 8.5px; opacity: .95; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
   .peer.auto { background: transparent; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--faint); }
   .dragging { cursor: grabbing !important; transition: none !important; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(0,0,0,.3) !important; }
   /* Name bubble on hover, like the one in Displays. */
@@ -279,6 +288,26 @@
     return { side, offset, length };
   }
 
+  // Placeholder pictures for the other computer: a blue Windows-style desktop with a centered
+  // taskbar, or a Mac-style gradient with a menu bar. (No logos.)
+  const svgUrl = s => `url('data:image/svg+xml,${encodeURIComponent(s)}')`;
+  const PEER_ART = {
+    Windows: svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+      <defs><radialGradient id="b" cx=".5" cy=".42" r=".85"><stop offset="0" stop-color="#a9dbff"/><stop offset=".42" stop-color="#2e7de0"/><stop offset="1" stop-color="#08245e"/></radialGradient>
+      <linearGradient id="p" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef8ff" stop-opacity=".9"/><stop offset="1" stop-color="#3a8ef0" stop-opacity=".15"/></linearGradient></defs>
+      <rect width="160" height="100" fill="url(#b)"/>
+      <g transform="translate(80 44)" fill="url(#p)"><ellipse rx="12" ry="28" transform="rotate(-36)"/><ellipse rx="12" ry="29"/><ellipse rx="12" ry="28" transform="rotate(36)"/>
+      <ellipse rx="10" ry="24" transform="rotate(-72)" opacity=".6"/><ellipse rx="10" ry="24" transform="rotate(72)" opacity=".6"/></g>
+      <rect y="90" width="160" height="10" fill="#0a1a3a" fill-opacity=".55"/>
+      <g fill="#fff" fill-opacity=".85"><rect x="66" y="92.5" width="5" height="5" rx="1.2"/><rect x="73" y="92.5" width="5" height="5" rx="1.2"/><rect x="80" y="92.5" width="5" height="5" rx="1.2"/><rect x="87" y="92.5" width="5" height="5" rx="1.2"/></g></svg>`),
+    Mac: svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+      <defs><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset=".55" stop-color="#7c3aed"/><stop offset="1" stop-color="#f472b6"/></linearGradient></defs>
+      <rect width="160" height="100" fill="url(#m)"/><circle cx="118" cy="30" r="22" fill="#fff" fill-opacity=".14"/>
+      <rect width="160" height="8" fill="#fff" fill-opacity=".5"/>
+      <rect x="52" y="86" width="56" height="10" rx="3" fill="#fff" fill-opacity=".4"/>
+      <g fill="#fff" fill-opacity=".9"><rect x="56" y="88" width="6" height="6" rx="1.6"/><rect x="66" y="88" width="6" height="6" rx="1.6"/><rect x="76" y="88" width="6" height="6" rx="1.6"/><rect x="86" y="88" width="6" height="6" rx="1.6"/><rect x="96" y="88" width="6" height="6" rx="1.6"/></g></svg>`),
+  };
+
   const kindOf = r => /ipad/i.test(r.name) ? 'ipad' : /built-in/i.test(r.name) ? 'laptop' : 'monitor';
 
   function drawArrange() {
@@ -297,13 +326,16 @@
     let html = screens.map((r, i) => {
       const movable = r.id != null && !r.main && screens.length > 1;
       const cls = ['scr', r.main ? 'main' : '', movable ? 'movable' : '', drag?.kind === 'screen' && drag.i === i ? 'dragging' : ''].join(' ');
-      const bg = walls[i] ? `;background-image:url(${walls[i]})` : '';
-      return `<div class="${cls}" data-i="${i}" style="${px(r)}${bg}"><div class="glass"></div><div class="bar"></div>` +
+      // Windows has no wallpapers to show here, so its own screens get the Windows look too.
+      const bg = walls[i] ? `;background-image:url(${walls[i]})` : S.os === 'windows' ? `;background-image:${PEER_ART.Windows}` : '';
+      return `<div class="${cls}" data-i="${i}" style="${px(r)}${bg}"><div class="glass"></div><div class="bar"></div><div class="dock"></div>` +
         `<div class="bubble">${ICON[kindOf(r)]}${esc(r.name || 'Display')}</div></div>`;
     }).join('');
     const name = S.peer || (S.os === 'mac' ? 'PC' : 'Mac');
-    const pcls = ['peer', S.placement || drag?.kind === 'peer' ? '' : 'auto', drag?.kind === 'peer' ? 'dragging' : ''].join(' ');
-    html += `<div class="${pcls}" id="peerBlock" style="${px(P)}"><span class="glyph">${esc(name)}</span>` +
+    const placed = S.placement || drag?.kind === 'peer';
+    const art = placed && PEER_ART[S.peer_os || (S.os === 'mac' ? 'Windows' : 'Mac')];
+    const pcls = ['peer', placed ? '' : 'auto', art ? 'art' : '', drag?.kind === 'peer' ? 'dragging' : ''].join(' ');
+    html += `<div class="${pcls}" id="peerBlock" style="${px(P)}${art ? ';background-image:' + art : ''}"><span class="glyph">${esc(name)}</span>` +
       `<div class="bubble">${ICON.pc}${esc(name)}${S.placement ? '' : ' · drag to pin'}</div></div>`;
     area.innerHTML = html;
   }
@@ -423,7 +455,7 @@ window.addEventListener('load', () => {
         controlling: params.has('controlling'), controlled: false,
         screens: [{ x: 0, y: 0, w: 1512, h: 982, name: 'Built-in', id: 1, main: true }, { x: 1512, y: 40, w: 1180, h: 820, name: 'iPad', id: 2, main: false }],
         peer_size: { w: 1707, h: 960 }, placement: { side: 'right', offset: 0, length: 960 } });
-  setWallpapers({ 0: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMxZTNhOGEnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzdjM2FlZCcvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2Y0NzJiNicvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=", 1: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMwZjc2NmUnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzI1NjNlYicvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2E3OGJmYScvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=" });
+  if (!params.has('windows')) setWallpapers({ 0: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMxZTNhOGEnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzdjM2FlZCcvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2Y0NzJiNicvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=", 1: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgMTAwJyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSdub25lJz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyMwZjc2NmUnLz48c3RvcCBvZmZzZXQ9Jy41NScgc3RvcC1jb2xvcj0nIzI1NjNlYicvPjxzdG9wIG9mZnNldD0nMScgc3RvcC1jb2xvcj0nI2E3OGJmYScvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nMTAwJyBmaWxsPSd1cmwoI2cpJy8+PGNpcmNsZSBjeD0nMTE4JyBjeT0nMzAnIHI9JzI2JyBmaWxsPSd3aGl0ZScgZmlsbC1vcGFjaXR5PScuMTgnLz48L3N2Zz4=" });
   document.getElementById('panel').classList.add('in');
   if (params.has('pairing')) document.getElementById('panel').classList.add('pairing');
 });
