@@ -6,7 +6,7 @@
 
   <p><strong>Use one keyboard and mouse across your Mac and your Windows PC.</strong></p>
   <p>Push the pointer off the edge of one screen and keep going on the other. Type, click, scroll, copy and paste, as if it were one computer. Like Universal Control, for PCs.</p>
-  <p>Free for personal use and open source. A simple Mac and PC alternative to Synergy, ShareMouse and Mouse Without Borders, with copy and paste and AirDrop to your PC.</p>
+  <p>Free for personal use, with the source code public. A simple Mac and PC alternative to Synergy, ShareMouse and Mouse Without Borders, with copy and paste and AirDrop to your PC.</p>
 
   <p>
     <a href="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml"><img src="https://github.com/betoxf/Magicinput/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build"></a>
