@@ -1,3 +1,6 @@
 /target
 /dist
 .DS_Store
+
+# Claude Code local permissions (may hold approved commands/secrets)
+.claude/settings.local.json
