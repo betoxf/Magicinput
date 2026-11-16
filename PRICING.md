@@ -18,7 +18,7 @@ Free for personal use also covers schools, charities, public research and govern
 
 - **Read or audit the code.** The full source is public, every release is built from it, and independent security reviews are welcome. Report findings privately as described in [SECURITY.md](SECURITY.md).
 - **Verify your download.** Each [release](https://github.com/betoxf/Magicinput/releases) publishes `SHA256SUMS.txt`, so you can confirm the file you downloaded is the one released (`shasum -a 256 MagicInput.dmg`). The Mac app and disk image are signed with an Apple Developer ID and notarized by Apple (`spctl --assess --verbose /Applications/MagicInput.app`).
-- **Watch what it does.** No accounts, no telemetry: MagicInput only talks to your other computer on your local network (and, with a monthly or yearly business key, renews it once a day), which you can confirm with any network monitor.
+- **Watch what it does.** No accounts, no telemetry: MagicInput only talks to your other computer on your local network, apart from asking GitHub for the latest version number when the settings panel opens (`check_updates = false` turns that off) and, with a monthly or yearly business key, renewing it once a day. You can confirm this with any network monitor.
 
 ## Licenses
 

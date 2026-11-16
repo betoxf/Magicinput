@@ -193,7 +193,7 @@ Yes. Copied text goes with the pointer to the other computer, and ⌘C / ⌘V wo
 
 ### Is it secure? Does it need the internet or an account?
 
-No internet, no account, no cloud. The two computers talk only on your local network, encrypted end to end with your pairing code. Connections from outside your network are refused. See [Privacy and security](#privacy-and-security).
+It doesn't need the internet, an account or a cloud. The two computers talk only on your local network, encrypted end to end with your pairing code. Connections from outside your network are refused. If the internet is there, the settings panel asks GitHub whether a newer version is out (you can turn that off). See [Privacy and security](#privacy-and-security).
 
 ### Does it work on Linux, or with more than two computers?
 
@@ -202,7 +202,7 @@ Not yet. MagicInput is for one Mac and one Windows PC (Windows 10 or 11, macOS 1
 ## Privacy and security
 
 - Input, clipboard text and settings travel only between your two computers, encrypted.
-- MagicInput has no servers, no account and no telemetry. With a monthly or yearly license, it fetches a fresh key from bullfighterstudio.com about once a day; that's the only server it talks to.
+- MagicInput has no servers, no account and no telemetry. The settings panel asks GitHub which version is the latest release when it opens (and once a day while the menu bar / tray icon is on), so it can say when an update is out; the request carries nothing about you or your computers. Turn it off with `check_updates = false` in the config file. With a monthly or yearly license, it also fetches a fresh key from bullfighterstudio.com about once a day. Those are the only servers it talks to.
 - Nothing is accepted from outside your local network.
 - The macOS permissions (Accessibility, Input Monitoring) are what any keyboard/mouse sharing tool needs to see and send input.
 - The source code is public, so you or your security team can audit exactly what it does, and check the downloads against the published checksums ([how](PRICING.md#check-it-yourself)).

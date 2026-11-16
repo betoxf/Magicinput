@@ -2,6 +2,13 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Update notice.** When a newer version is out, the panel says so with a Download button, and the menu bar / tray menu shows "Update to …". The panel asks GitHub for the latest version number when it opens (and once a day while the icon is on); nothing about your computer is sent. Turn it off with `check_updates = false` in the config file. Microsoft Store installs don't check, since the Store updates them.
+- **Report a problem**, in the panel's footer and the icon's menu, opens a GitHub bug report with your MagicInput and system versions filled in.
+
 ## [0.6.2] - 2026-10-25
 
 ### Changed

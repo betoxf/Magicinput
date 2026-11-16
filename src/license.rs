@@ -65,7 +65,8 @@ pub fn due(cfg: &Config) -> bool {
 }
 
 /// Fetch a fresh key for a subscription from bullfighterstudio.com, so it keeps working after each
-/// renewal. This is the only time MagicInput contacts a server, and only once a key is entered.
+/// renewal. Apart from the settings panel's check for a new version (`crate::update`), this is the
+/// only time MagicInput contacts a server, and only once a key is entered.
 pub fn refresh(cfg: &Config) -> Option<String> {
     let session = decode(&cfg.license)?.s?;
     if !session.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
