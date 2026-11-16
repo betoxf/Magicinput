@@ -54,7 +54,7 @@ Bursts of movement are merged before sending. On the receiving side, movement th
 
 ## Settings panel
 
-A borderless window with system glass (vibrancy on macOS, acrylic on Windows) hosting a small web page (`src/ui.html`). It is shown only once drawn, attaches under the tray icon, closes on click-away or Esc, and is kept hidden for reuse while the icon is on. On macOS the menu bar icon is a live vector image composed from SF Symbols; display names and wallpapers come from AppKit, and displays are moved with Core Graphics display configuration.
+A borderless window with system glass (vibrancy on macOS, acrylic on Windows) hosting a small web page (`src/ui.html`). It is shown only once drawn, attaches under the tray icon, closes on click-away or Esc, and is kept hidden for reuse while the icon is on. When it starts, and once a day while it keeps running for the icon, the panel reads which version GitHub's latest-release page redirects to (`curl`, nothing sent about the computer) and offers the download if it's newer; `check_updates = false` turns that off, and Store installs skip it. "Report a problem" (footer and icon menu) opens a GitHub bug report with the MagicInput and system versions filled in. On macOS the menu bar icon is a live vector image composed from SF Symbols; display names and wallpapers come from AppKit, and displays are moved with Core Graphics display configuration.
 
 ## Footprint
 

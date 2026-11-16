@@ -82,6 +82,9 @@ pub struct Config {
     pub license: String,
     /// When a subscription key was last refreshed (unix seconds).
     pub license_checked: u64,
+    /// The settings panel asks GitHub whether a newer version is out and says so (it sends
+    /// nothing about this computer). `false` turns that off.
+    pub check_updates: bool,
 }
 
 impl Default for Config {
@@ -105,6 +108,7 @@ impl Default for Config {
             layout_time: 0,
             license: String::new(),
             license_checked: 0,
+            check_updates: true,
         }
     }
 }

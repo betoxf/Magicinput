@@ -21,7 +21,7 @@ use wry::{WebView, WebViewBuilder};
 use crate::config::{self, Config, Layout};
 use crate::geom::{self, Placement, Rect};
 use crate::proto::Side;
-use crate::{platform, service, status};
+use crate::{platform, service, status, update};
 
 /// Local port a running window listens on, so opening the app again just brings it forward.
 const UI_PORT: u16 = 24843;
@@ -42,11 +42,15 @@ enum UserEvent {
     Tick,
     /// Start-at-login finished changing (it can take a moment, or an admin prompt on Windows).
     LoginChanged,
+    /// A newer version is out.
+    Update(String),
 }
 
 struct Tray {
     _icon: TrayIcon,
+    menu: Menu,
     status: MenuItem,
+    update: Option<MenuItem>,
 }
 
 /// Start the settings window in its own process (at login only the icon, if it's turned on).
@@ -138,6 +142,25 @@ pub fn run(background: bool) {
             }
         });
     }
+    // Look for a new version when the panel starts, then once a day while it's kept running for
+    // the icon. Store installs are updated by the Store.
+    #[cfg(windows)]
+    let store = crate::packaged();
+    #[cfg(not(windows))]
+    let store = false;
+    if cfg.check_updates && !store {
+        let p = proxy.clone();
+        std::thread::spawn(move || {
+            loop {
+                if let Some(v) = update::check()
+                    && p.send_event(UserEvent::Update(v)).is_err()
+                {
+                    return;
+                }
+                std::thread::sleep(Duration::from_secs(24 * 3600));
+            }
+        });
+    }
 
     // First time on this computer: start the background service right away.
     if !background && !service::installed() {
@@ -155,6 +178,8 @@ pub fn run(background: bool) {
     // The current panel has finished loading once (so it can be re-shown as is).
     let mut loaded = false;
     let mut closed_at = std::time::Instant::now() - Duration::from_secs(5);
+    // A newer version, if one is out.
+    let mut newer: Option<String> = None;
 
     event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::Wait;
@@ -164,7 +189,7 @@ pub fn run(background: bool) {
         match event {
             Event::NewEvents(StartCause::Init) => {
                 if Config::load().show_tray {
-                    tray = make_tray();
+                    tray = make_tray(&newer);
                 }
                 show = !background;
                 opened = !background;
@@ -196,9 +221,20 @@ pub fn run(background: bool) {
                     save(|c| c.show_tray = false);
                     tray = None;
                 }
+                "report" => open_url(&update::report_url()),
+                "update" => open_url(update::RELEASES_URL),
                 _ => {}
             },
             Event::UserEvent(UserEvent::LoginChanged) => login = service::installed(),
+            Event::UserEvent(UserEvent::Update(v)) => {
+                if let Some(t) = &mut tray {
+                    show_update(t, &v);
+                }
+                newer = Some(v);
+                if let Some((_, wv)) = &win {
+                    let _ = wv.evaluate_script(&format!("render({})", state(&status::read(), login, &names, &newer)));
+                }
+            }
             Event::UserEvent(UserEvent::Tick) => {
                 let st = status::read();
                 if let Some(t) = &tray {
@@ -206,7 +242,7 @@ pub fn run(background: bool) {
                 }
                 if let Some((_, wv)) = &win {
                     names = monitor_names(target);
-                    let _ = wv.evaluate_script(&format!("render({})", state(&st, login, &names)));
+                    let _ = wv.evaluate_script(&format!("render({})", state(&st, login, &names, &newer)));
                 }
             }
             Event::UserEvent(UserEvent::Ipc(msg)) => {
@@ -228,7 +264,7 @@ pub fn run(background: bool) {
                     "tray" => {
                         let on = v.as_bool().unwrap_or(false);
                         save(|c| c.show_tray = on);
-                        tray = if on { make_tray() } else { None };
+                        tray = if on { make_tray(&newer) } else { None };
                     }
                     "login" => set_login(v.as_bool().unwrap_or(true), &proxy),
                     // The page is drawn: size the panel to it, attach it and show it (no flash).
@@ -263,6 +299,17 @@ pub fn run(background: bool) {
                         }
                     }
                     "buy" => open_url(crate::license::BUY_URL),
+                    "report" => open_url(&update::report_url()),
+                    "update" => open_url(update::RELEASES_URL),
+                    // Something on the page changed its height (such as the update notice).
+                    "resize" => {
+                        height = v.as_f64().unwrap_or(height);
+                        if let Some((w, _)) = &win
+                            && shown
+                        {
+                            place(w, anchor, height);
+                        }
+                    }
                     "close" => {
                         close_panel(&mut win, &mut shown, tray.is_some());
                         closed_at = std::time::Instant::now();
@@ -295,7 +342,7 @@ pub fn run(background: bool) {
                     _ => {}
                 }
                 if let Some((_, wv)) = &win {
-                    let _ = wv.evaluate_script(&format!("render({})", state(&status::read(), login, &names)));
+                    let _ = wv.evaluate_script(&format!("render({})", state(&status::read(), login, &names, &newer)));
                 }
             }
             // Dropping the window frees the web view entirely.
@@ -310,14 +357,14 @@ pub fn run(background: bool) {
         // Opening MagicInput brings a hidden icon back, until it's hidden again from its menu.
         if opened && tray.is_none() {
             save(|c| c.show_tray = true);
-            tray = make_tray();
+            tray = make_tray(&newer);
         }
         if show {
             match &win {
                 // Kept from last time (icon mode): attach it again and replay the entrance.
                 Some((w, wv)) if loaded && !w.is_visible() => {
                     place(w, anchor, height);
-                    let _ = wv.evaluate_script(&format!("reopen({})", state(&status::read(), login, &names)));
+                    let _ = wv.evaluate_script(&format!("reopen({})", state(&status::read(), login, &names, &newer)));
                     w.set_visible(true);
                     w.set_focus();
                     shown = true;
@@ -424,13 +471,14 @@ fn place(w: &Window, anchor: Option<tray_icon::Rect>, height: f64) {
     w.set_outer_position(LogicalPosition::new(x, y));
 }
 
-fn make_tray() -> Option<Tray> {
+fn make_tray(newer: &Option<String>) -> Option<Tray> {
     let status = MenuItem::new("MagicInput", false, None);
     let menu = Menu::new();
     menu.append_items(&[
         &status,
         &PredefinedMenuItem::separator(),
         &MenuItem::with_id("settings", "Open MagicInput", true, None),
+        &MenuItem::with_id("report", "Report a Problem…", true, None),
         &MenuItem::with_id("hide", if cfg!(target_os = "macos") { "Hide from Menu Bar" } else { "Hide Icon" }, true, None),
     ])
     .ok()?;
@@ -441,14 +489,32 @@ fn make_tray() -> Option<Tray> {
     let builder = TrayIconBuilder::new().with_icon(load_icon()?);
     let icon = builder
         .with_tooltip("MagicInput")
-        .with_menu(Box::new(menu))
+        .with_menu(Box::new(menu.clone()))
         .with_menu_on_left_click(false)
         .build()
         .ok()?;
     #[cfg(target_os = "macos")]
     apply_vector_icon(&icon);
     status.set_text(status_line(&status::read()));
-    Some(Tray { _icon: icon, status })
+    let mut tray = Tray { _icon: icon, menu, status, update: None };
+    if let Some(v) = newer {
+        show_update(&mut tray, v);
+    }
+    Some(tray)
+}
+
+/// Add "Update to x.y.z…" to the icon's menu, under the status line.
+fn show_update(tray: &mut Tray, version: &str) {
+    let text = format!("Update to {version}…");
+    match &tray.update {
+        Some(item) => item.set_text(text),
+        None => {
+            let item = MenuItem::with_id("update", text, true, None);
+            if tray.menu.insert(&item, 1).is_ok() {
+                tray.update = Some(item);
+            }
+        }
+    }
 }
 
 fn load_icon() -> Option<Icon> {
@@ -680,7 +746,7 @@ fn move_display(id: u32, x: f64, y: f64) {
     }
 }
 
-fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> String {
+fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)], newer: &Option<String>) -> String {
     let c = Config::load();
     let own = own_displays(st, names);
     let mine: Vec<Rect> = own.iter().map(|d| d.0).collect();
@@ -724,6 +790,7 @@ fn state(st: &Option<status::Status>, login: bool, names: &[(Rect, String)]) -> 
         "screens": screens,
         "peer_size": { "w": peer.w, "h": peer.h },
         "placement": placement,
+        "update": newer,
     })
     .to_string()
 }

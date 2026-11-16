@@ -13,6 +13,7 @@ mod proto;
 mod service;
 mod status;
 pub mod ui;
+mod update;
 
 use std::io::IsTerminal;
 
