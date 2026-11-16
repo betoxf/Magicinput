@@ -193,7 +193,7 @@ Yes. Copied text goes with the pointer to the other computer, and ⌘C / ⌘V wo
 
 ### Is it secure? Does it need the internet or an account?
 
-No internet, no account, no cloud. The two computers talk only on your local network, encrypted end to end with your pairing code. Connections from outside your network are refused. See [Privacy and security](#privacy-and-security).
+It doesn't need the internet, an account or a cloud. The two computers talk only on your local network, encrypted end to end with your pairing code. Connections from outside your network are refused. If the internet is there, the settings panel asks GitHub whether a newer version is out (you can turn that off). See [Privacy and security](#privacy-and-security).
 
 ### Does it work on Linux, or with more than two computers?
 

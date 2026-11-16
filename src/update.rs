@@ -28,9 +28,10 @@ fn newer(current: &str, latest: (u32, u32, u32)) -> Option<String> {
     (latest > parse(current)?).then(|| format!("{}.{}.{}", latest.0, latest.1, latest.2))
 }
 
-/// Ask GitHub which version is the latest release, and return it if it's newer than this one.
-/// The request carries nothing about this computer or its settings.
-pub fn check() -> Option<String> {
+/// Ask GitHub which version is the latest release: `Some(newer)` or `Some(None)` once known,
+/// `None` if it couldn't be found out (offline, say). The request carries nothing about this
+/// computer or its settings.
+pub fn check() -> Option<Option<String>> {
     let mut cmd = Command::new("curl");
     cmd.args(["-fsSI", "--max-time", "20", RELEASES_URL]);
     #[cfg(windows)]
@@ -39,7 +40,7 @@ pub fn check() -> Option<String> {
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
     let out = cmd.output().ok()?;
-    newer(env!("CARGO_PKG_VERSION"), latest_in(&String::from_utf8_lossy(&out.stdout))?)
+    Some(newer(env!("CARGO_PKG_VERSION"), latest_in(&String::from_utf8_lossy(&out.stdout))?))
 }
 
 /// A new bug report on GitHub, with this computer's MagicInput and system versions filled in.

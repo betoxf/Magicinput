@@ -142,8 +142,9 @@ pub fn run(background: bool) {
             }
         });
     }
-    // Look for a new version when the panel starts, then once a day while it's kept running for
-    // the icon. Store installs are updated by the Store.
+    // Look for a new version when the panel starts, then about once a day while it's kept running
+    // for the icon (by the clock, so sleep doesn't push it back), trying again each hour while
+    // offline. Store installs are updated by the Store.
     #[cfg(windows)]
     let store = crate::packaged();
     #[cfg(not(windows))]
@@ -151,13 +152,20 @@ pub fn run(background: bool) {
     if cfg.check_updates && !store {
         let p = proxy.clone();
         std::thread::spawn(move || {
+            let mut checked = 0;
             loop {
-                if let Some(v) = update::check()
-                    && p.send_event(UserEvent::Update(v)).is_err()
+                let now = crate::license::now();
+                if now.saturating_sub(checked) >= 24 * 3600
+                    && let Some(found) = update::check()
                 {
-                    return;
+                    checked = now;
+                    if let Some(v) = found
+                        && p.send_event(UserEvent::Update(v)).is_err()
+                    {
+                        return;
+                    }
                 }
-                std::thread::sleep(Duration::from_secs(24 * 3600));
+                std::thread::sleep(Duration::from_secs(3600));
             }
         });
     }
