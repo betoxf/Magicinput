@@ -115,14 +115,11 @@ pub fn report(cfg: &mut Config, json: bool) {
         format!("Start it again: {cmd} install")
     } else if let Some(peer) = &connected {
         format!("All set: connected to {peer}. Move the pointer off the edge of the screen toward it (in Auto mode, push firmly past the left or right edge).")
-    } else if let Some(n) = nearby.iter().find(|n| n.same_code) {
-        format!(
-            "{} uses the same pairing code but isn't connected yet. Check both computers are on the same network and the firewall allows MagicInput, then wait a few seconds.",
-            n.name
-        )
+    } else if let Some(n) = nearby.iter().find(|n| !n.compatible) {
+        format!("{} runs a different version of MagicInput, so they can't pair: update MagicInput on both computers.", n.name)
     } else if let Some(n) = nearby.first() {
         format!(
-            "This is the second computer: {} is already running MagicInput. Get its code (on that computer run `magicinput status`, or open MagicInput and click the link icon), then run here: {cmd} pair <CODE>",
+            "{} is running MagicInput but isn't connected. If this is the second computer, get its code (on that computer run `magicinput status`, or open MagicInput and click the link icon), then run here: {cmd} pair <CODE>. If both already show the same code, check both computers are on the same network and the firewall allows MagicInput, then wait half a minute.",
             n.name
         )
     } else {
@@ -143,7 +140,7 @@ pub fn report(cfg: &mut Config, json: bool) {
             "business_license": crate::license::verify(&cfg.license).map(|l| l.plan),
             "connected_to": connected,
             "role": role,
-            "nearby": nearby.iter().map(|n| serde_json::json!({ "name": n.name, "address": n.address, "same_code": n.same_code })).collect::<Vec<_>>(),
+            "nearby": nearby.iter().map(|n| serde_json::json!({ "name": n.name, "address": n.address, "compatible": n.compatible })).collect::<Vec<_>>(),
             "next_step": next,
         });
         println!("{}", serde_json::to_string_pretty(&v).unwrap());
@@ -161,7 +158,8 @@ pub fn report(cfg: &mut Config, json: bool) {
     }
     for n in &nearby {
         let addr = n.address.as_deref().map(|a| format!(" ({a})")).unwrap_or_default();
-        println!("  Nearby:           {}{addr}, {}", n.name, if n.same_code { "same code" } else { "different code" });
+        let version = if n.compatible { "" } else { ", different version: update MagicInput on both computers" };
+        println!("  Nearby:           {}{addr}{version}", n.name);
     }
     println!("\nNext: {next}");
 }

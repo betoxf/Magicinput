@@ -142,8 +142,8 @@ It installs MagicInput, works out whether this is the first or second computer, 
 
 Each computer runs the same small background service. When the pointer reaches the edge that leads to the other computer, the service hides and freezes the local pointer and forwards your keyboard, mouse and scroll input over the network; the other computer replays it as if it came from its own devices. Crossing back hands control home again.
 
-- **Discovery:** computers advertise themselves on the local network (Bonjour/mDNS) and only talk to ones using the same pairing code.
-- **Encryption:** every connection uses the Noise protocol (X25519, ChaCha20-Poly1305) with a key derived from the pairing code. A wrong code can't connect, and the code itself is never sent.
+- **Discovery:** computers advertise themselves on the local network (Bonjour/mDNS) with a random id and their name, nothing derived from the pairing code. They only connect once pairing with the same code succeeds.
+- **Encryption:** computers pair with a password-authenticated key exchange (SPAKE2) on the pairing code, then every connection uses the Noise protocol (X25519, ChaCha20-Poly1305) with the key it produced. A wrong code can't connect, the code itself is never sent, and failed attempts are slowed down.
 - **Local only:** connections from outside your own subnet (internet, VPNs, Tailscale) are refused.
 - **Keys:** keystrokes travel as layout-independent USB key codes, so each computer applies its own keyboard layout.
 - **Smoothness:** each pointer update is timestamped; updates that Wi-Fi delivers late are replayed as a short glide.

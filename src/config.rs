@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::geom::{Placement, Rect};
 use crate::proto::Side;
@@ -146,17 +145,6 @@ impl Config {
             eprintln!("Could not save {}: {e}", path.display());
         }
     }
-
-    /// 32-byte pre-shared key for the encrypted channel.
-    pub fn psk(&self) -> [u8; 32] {
-        Sha256::digest(format!("magicinput/v1/psk/{}", normalize_code(&self.code))).into()
-    }
-
-    /// Short public tag so computers only try to talk to others paired with the same code.
-    pub fn group(&self) -> String {
-        let h = Sha256::digest(format!("magicinput/v1/group/{}", normalize_code(&self.code)));
-        h[..4].iter().map(|b| format!("{b:02x}")).collect()
-    }
 }
 
 pub fn new_code() -> String {
@@ -177,11 +165,21 @@ pub fn normalize_code(code: &str) -> String {
 }
 
 fn random_string(len: usize, alphabet: &[u8]) -> String {
-    let mut buf = vec![0u8; len];
-    getrandom::fill(&mut buf).expect("no system randomness");
-    buf.iter()
-        .map(|b| alphabet[*b as usize % alphabet.len()] as char)
-        .collect()
+    let mut out = String::with_capacity(len);
+    let mut buf = [0u8; 32];
+    while out.len() < len {
+        getrandom::fill(&mut buf).expect("no system randomness");
+        out.extend(buf.iter().filter_map(|&b| pick(b, alphabet)).take(len - out.len()));
+    }
+    out
+}
+
+/// The character for one random byte, or `None` for the few top byte values that would make
+/// some characters more likely than others (they are skipped and another byte is drawn).
+fn pick(b: u8, alphabet: &[u8]) -> Option<char> {
+    let n = alphabet.len();
+    let usable = 256 - 256 % n;
+    ((b as usize) < usable).then(|| alphabet[b as usize % n] as char)
 }
 
 fn hostname() -> String {
@@ -224,8 +222,27 @@ mod tests {
     fn codes_normalize_the_same() {
         let a = Config { code: "k7qp-3mzd".into(), ..Default::default() };
         let b = Config { code: "K7QP 3MZD".into(), ..Default::default() };
-        assert_eq!(a.psk(), b.psk());
-        assert_eq!(a.group(), b.group());
-        assert_eq!(new_code().len(), 9);
+        assert_eq!(normalize_code(&a.code), normalize_code(&b.code));
+        assert_eq!(normalize_code("o0-il1"), "00111");
+        let code = new_code();
+        assert_eq!(code.len(), 9);
+        assert_eq!(code.as_bytes()[4], b'-');
+        assert!(code.bytes().filter(|&c| c != b'-').all(|c| CODE_ALPHABET.contains(&c)));
+    }
+
+    #[test]
+    fn every_code_character_is_equally_likely() {
+        for alphabet in [CODE_ALPHABET, b"abcdefghijklmnopqrstuvwxyz0123456789".as_slice()] {
+            let mut counts = std::collections::HashMap::new();
+            for b in 0..=255u8 {
+                if let Some(c) = pick(b, alphabet) {
+                    *counts.entry(c).or_insert(0) += 1;
+                }
+            }
+            assert_eq!(counts.len(), alphabet.len());
+            let per_char = 256 / alphabet.len();
+            assert!(counts.values().all(|&n| n == per_char), "{counts:?}");
+        }
+        assert_eq!(random_string(500, CODE_ALPHABET).len(), 500);
     }
 }

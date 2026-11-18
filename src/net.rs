@@ -1,28 +1,39 @@
-//! Encrypted peer connection (Noise NNpsk0 over TCP) plus LAN discovery (mDNS).
+//! Encrypted peer connection (SPAKE2 pairing, then Noise NNpsk0 over TCP) plus LAN discovery (mDNS).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 use log::{debug, info, warn};
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
+use sha2::Sha256;
 use snow::TransportState;
+use spake2::{Ed25519Group, Identity, Password, Spake2};
 
-use crate::config::Config;
+use crate::config::{Config, normalize_code};
 use crate::core::{Core, Peer};
 use crate::proto::{Msg, Os, PROTOCOL_VERSION};
 
 type Res<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 const NOISE: &str = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s";
+/// Starts the first frame each side sends, followed by its `PROTOCOL_VERSION` (big-endian u32).
+const MAGIC: &[u8; 8] = b"MagicInp";
+/// Labels binding the pairing exchange and the key it yields to this protocol.
+const PAKE_ID: &str = "magicinput/pake";
+const PSK_INFO: &[u8] = b"magicinput/noise-psk";
+/// At most this many incoming connections may be pairing at once.
+const MAX_PENDING: usize = 8;
+/// At most this many discovered computers are remembered (and dialed).
+const MAX_FOUND: usize = 16;
 const SERVICE: &str = "_magicinput._tcp.local.";
 const MAX_FRAME: usize = 65535;
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -45,14 +56,11 @@ struct Active {
 struct Found {
     host: String,
     port: u16,
-    /// Pairing group tag they advertise; only peers with ours are dialed.
-    group: String,
     addrs: Vec<SocketAddr>,
 }
 
 pub struct Net {
     cfg: RwLock<Config>,
-    psk: Mutex<[u8; 32]>,
     core: &'static Core,
     active: Mutex<Option<Active>>,
     next_gen: AtomicU64,
@@ -61,6 +69,11 @@ pub struct Net {
     mdns: Mutex<Option<ServiceDaemon>>,
     /// Full name of our current mDNS registration.
     registered: Mutex<Option<String>>,
+    /// Paces pairing attempts from other computers, and to them.
+    inbound: Mutex<Throttle>,
+    outbound: Mutex<Throttle>,
+    /// Incoming connections still pairing.
+    pending: AtomicUsize,
 }
 
 pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<Arc<Net>> {
@@ -78,7 +91,6 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<Arc<Ne
         }
     };
     let net = Arc::new(Net {
-        psk: Mutex::new(cfg.psk()),
         cfg: RwLock::new(cfg),
         core,
         active: Mutex::new(None),
@@ -86,6 +98,9 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<Arc<Ne
         found: Mutex::new(HashMap::new()),
         mdns: Mutex::new(None),
         registered: Mutex::new(None),
+        inbound: Mutex::new(Throttle::new(true)),
+        outbound: Mutex::new(Throttle::new(false)),
+        pending: AtomicUsize::new(0),
     });
 
     let n = net.clone();
@@ -96,10 +111,20 @@ pub fn start(cfg: Config, core: &'static Core, out: Receiver<Msg>) -> Res<Arc<Ne
                 debug!("Ignoring connection from {addr}: not on this local network");
                 continue;
             }
+            if n.pending.load(Ordering::SeqCst) >= MAX_PENDING {
+                debug!("Ignoring connection from {addr}: too many computers pairing at once");
+                continue;
+            }
+            if !n.inbound.lock().unwrap().try_begin(addr.ip(), Instant::now()) {
+                debug!("Ignoring connection from {addr}: waiting after failed pairing attempts");
+                continue;
+            }
+            n.pending.fetch_add(1, Ordering::SeqCst);
             let n = n.clone();
             thread::spawn(move || {
-                if let Err(e) = n.establish(stream, false) {
-                    warn!("Incoming connection from {addr:?} failed: {e} (different pairing code?)");
+                if let Err(e) = n.clone().establish(stream, false) {
+                    let wait = n.inbound.lock().unwrap().waiting(addr.ip());
+                    warn!("Incoming connection from {addr} failed: {e}{}", pause(wait));
                 }
             });
         }
@@ -123,7 +148,9 @@ impl Net {
     pub fn reload(&self, new: Config) {
         let old = std::mem::replace(&mut *self.cfg.write().unwrap(), new.clone());
         if old.code != new.code || old.name != new.name {
-            *self.psk.lock().unwrap() = new.psk();
+            // Attempts that failed with the previous code don't count against anyone.
+            self.inbound.lock().unwrap().clear();
+            self.outbound.lock().unwrap().clear();
             if let Err(e) = self.register() {
                 warn!("Could not re-advertise: {e}");
             }
@@ -142,10 +169,9 @@ impl Net {
         if let Some(old) = self.registered.lock().unwrap().take() {
             let _ = mdns.unregister(&old);
         }
-        let group = cfg.group();
         let instance = format!("{}-{}", cfg.name, cfg.id);
         let host = format!("magicinput-{}.local.", cfg.id);
-        let props = [("id", cfg.id.as_str()), ("g", group.as_str()), ("n", cfg.name.as_str())];
+        let props = txt_properties(&cfg);
         let info = ServiceInfo::new(SERVICE, &instance, &host, "", cfg.port, &props[..])?.enable_addr_auto();
         *self.registered.lock().unwrap() = Some(info.get_fullname().to_string());
         mdns.register(info)?;
@@ -156,19 +182,19 @@ impl Net {
         loop {
             if self.active.lock().unwrap().is_none() {
                 let cfg = self.cfg.read().unwrap().clone();
-                let group = cfg.group();
                 let mut targets: Vec<SocketAddr> = Vec::new();
                 if let Some(addr) = &cfg.peer_addr {
                     let with_port = if addr.contains(':') { addr.clone() } else { format!("{addr}:{}", cfg.port) };
                     targets.extend(with_port.to_socket_addrs().into_iter().flatten().filter(|a| same_lan(a.ip())));
                 }
-                // For discovered peers only the smaller id dials, so we don't race each other.
+                // For discovered peers only the smaller id dials, so we don't race each other. Any
+                // MagicInput computer is dialed: pairing decides whether it's ours.
                 let peers: Vec<(Vec<SocketAddr>, String, u16)> = self
                     .found
                     .lock()
                     .unwrap()
                     .iter()
-                    .filter(|(id, f)| cfg.id < **id && f.group == group)
+                    .filter(|(id, _)| cfg.id < **id)
                     .map(|(_, f)| (f.addrs.clone(), f.host.clone(), f.port))
                     .collect();
                 for (addrs, host, port) in peers {
@@ -181,12 +207,23 @@ impl Net {
                     targets.extend(addrs.into_iter().filter(|a| a.is_ipv4() && same_lan(a.ip())));
                 }
                 for addr in targets {
+                    if !self.outbound.lock().unwrap().try_begin(addr.ip(), Instant::now()) {
+                        debug!("{addr}: waiting after failed pairing attempts");
+                        continue;
+                    }
                     match TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
                         Ok(s) => match self.clone().establish(s, true) {
                             Ok(()) => break,
-                            Err(e) => warn!("Connecting to {addr} failed: {e}"),
+                            Err(e) => {
+                                let wait = self.outbound.lock().unwrap().waiting(addr.ip());
+                                warn!("Connecting to {addr} failed: {e}{}", pause(wait));
+                            }
                         },
-                        Err(e) => debug!("{addr}: {e}"),
+                        Err(e) => {
+                            // Nobody answered, so no pairing was attempted.
+                            self.outbound.lock().unwrap().not_attempted(addr.ip());
+                            debug!("{addr}: {e}");
+                        }
                     }
                 }
             }
@@ -200,16 +237,22 @@ impl Net {
         *self.mdns.lock().unwrap() = Some(mdns);
         self.register()?;
         thread::spawn(move || {
+            let mut other_versions = HashSet::new();
             while let Ok(ev) = rx.recv() {
                 if let ServiceEvent::ServiceRemoved(_, fullname) = &ev {
                     // Forget addresses of computers that went away, so we stop dialing them.
                     self.found.lock().unwrap().retain(|id, _| !fullname.contains(id.as_str()));
                 }
                 if let ServiceEvent::ServiceResolved(s) = ev {
-                    let (Some(id), Some(g)) = (s.get_property_val_str("id"), s.get_property_val_str("g")) else {
-                        continue;
-                    };
+                    let Some(id) = s.get_property_val_str("id") else { continue };
                     if id == self.cfg.read().unwrap().id {
+                        continue;
+                    }
+                    // Older versions can't pair with this one; their computers don't advertise `v`.
+                    if s.get_property_val_str("v") != Some(PROTOCOL_VERSION.to_string().as_str()) {
+                        if other_versions.insert(id.to_string()) {
+                            warn!("{} runs a different version of MagicInput: update MagicInput on both computers", s.host);
+                        }
                         continue;
                     }
                     let addrs: Vec<SocketAddr> = s
@@ -219,10 +262,13 @@ impl Net {
                         .collect();
                     debug!("Discovered {id} ({}) at {addrs:?}", s.host);
                     let mut found = self.found.lock().unwrap();
+                    if !found.contains_key(id) && found.len() >= MAX_FOUND {
+                        debug!("Ignoring {id}: too many computers nearby");
+                        continue;
+                    }
                     let entry = found
                         .entry(id.to_string())
-                        .or_insert(Found { host: s.host.clone(), port: s.get_port(), group: String::new(), addrs: Vec::new() });
-                    entry.group = g.to_string();
+                        .or_insert(Found { host: s.host.clone(), port: s.get_port(), addrs: Vec::new() });
                     entry.host = s.host.clone();
                     entry.port = s.get_port();
                     if !addrs.is_empty() {
@@ -236,12 +282,17 @@ impl Net {
 
     /// Handshake, exchange hellos, then run the reader until the connection drops.
     fn establish(self: Arc<Self>, mut stream: TcpStream, dialer: bool) -> Res<()> {
-        stream.set_nodelay(true)?;
-        prioritize(&stream);
-        stream.set_read_timeout(Some(TIMEOUT))?;
-        stream.set_write_timeout(Some(TIMEOUT))?;
-        let psk = *self.psk.lock().unwrap();
-        let mut noise = handshake(&mut stream, &psk, dialer)?;
+        let paired = (|| {
+            stream.set_nodelay(true)?;
+            prioritize(&stream);
+            stream.set_read_timeout(Some(TIMEOUT))?;
+            stream.set_write_timeout(Some(TIMEOUT))?;
+            self.pair(&mut stream, dialer)
+        })();
+        if !dialer {
+            self.pending.fetch_sub(1, Ordering::SeqCst);
+        }
+        let mut noise = paired?;
 
         let cfg = self.cfg.read().unwrap().clone();
         let hello = Msg::Hello {
@@ -264,7 +315,7 @@ impl Net {
             return Err("expected hello".into());
         };
         if version != PROTOCOL_VERSION {
-            return Err(format!("{name} runs protocol v{version}, we run v{PROTOCOL_VERSION}; update both").into());
+            return Err(format!("{name} runs protocol v{version}, this computer v{PROTOCOL_VERSION}: update MagicInput on both computers").into());
         }
         if id == cfg.id {
             return Err("connected to myself".into());
@@ -316,6 +367,17 @@ impl Net {
         Ok(())
     }
 
+    /// Pair over a fresh connection with the current code; success clears earlier failed attempts
+    /// from (or to) that address.
+    fn pair(&self, stream: &mut TcpStream, initiator: bool) -> Res<TransportState> {
+        let code = self.cfg.read().unwrap().code.clone();
+        let noise = secure(stream, &code, initiator)?;
+        let ip = stream.peer_addr()?.ip();
+        let throttle = if initiator { &self.outbound } else { &self.inbound };
+        throttle.lock().unwrap().succeeded(ip);
+        Ok(noise)
+    }
+
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     /// Offer a file to the other computer over a connection of its own. `force`: our user is
     /// working on the other computer. Returns whether it took the file and saved all of it.
@@ -330,13 +392,12 @@ impl Net {
         stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(FILE_TIMEOUT))?;
         stream.set_write_timeout(Some(FILE_TIMEOUT))?;
-        let psk = *self.psk.lock().unwrap();
-        let mut noise = handshake(&mut stream, &psk, true)?;
+        let mut noise = self.pair(&mut stream, true)?;
         let Msg::Hello { version, .. } = read_msg(&mut stream, &mut noise)? else {
             return Err("expected hello".into());
         };
         if version != PROTOCOL_VERSION {
-            return Err(format!("the other computer runs protocol v{version}, we run v{PROTOCOL_VERSION}").into());
+            return Err(format!("the other computer runs protocol v{version}, this one v{PROTOCOL_VERSION}: update MagicInput on both computers").into());
         }
         offer_file(&mut stream, &mut noise, path, force, crate::platform::idle_ms())
     }
@@ -388,15 +449,20 @@ impl Net {
 pub struct Nearby {
     pub name: String,
     pub address: Option<String>,
-    /// Uses the same pairing code as this computer.
-    pub same_code: bool,
+    /// Runs a version of MagicInput that can pair with this one. Whether it uses the same code
+    /// is only known once it connects.
+    pub compatible: bool,
+}
+
+/// What we advertise over mDNS. Nothing here depends on the pairing code.
+fn txt_properties(cfg: &Config) -> Vec<(&'static str, String)> {
+    vec![("id", cfg.id.clone()), ("n", cfg.name.clone()), ("v", PROTOCOL_VERSION.to_string())]
 }
 
 /// Look for other computers running MagicInput on the local network (for `magicinput status`).
 pub fn discover(cfg: &Config, wait: Duration) -> Vec<Nearby> {
     let Ok(mdns) = ServiceDaemon::new() else { return Vec::new() };
     let Ok(rx) = mdns.browse(SERVICE) else { return Vec::new() };
-    let group = cfg.group();
     let deadline = std::time::Instant::now() + wait;
     let mut found: HashMap<String, Nearby> = HashMap::new();
     while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
@@ -412,8 +478,8 @@ pub fn discover(cfg: &Config, wait: Duration) -> Vec<Nearby> {
                     instance.strip_suffix(&format!("-{id}")).unwrap_or(instance).to_string()
                 });
                 let address = s.get_addresses_v4().into_iter().next().map(|ip| ip.to_string());
-                let same_code = s.get_property_val_str("g") == Some(group.as_str());
-                found.insert(id.to_string(), Nearby { name, address, same_code });
+                let compatible = s.get_property_val_str("v") == Some(PROTOCOL_VERSION.to_string().as_str());
+                found.insert(id.to_string(), Nearby { name, address, compatible });
             }
             Ok(_) => {}
             Err(_) => break,
@@ -469,20 +535,149 @@ fn same_lan(ip: IpAddr) -> bool {
     })
 }
 
-fn handshake(stream: &mut TcpStream, psk: &[u8; 32], initiator: bool) -> Res<TransportState> {
-    let builder = snow::Builder::new(NOISE.parse()?).psk(0, psk)?;
+/// Pair with the computer on the other end of `stream` and open the encrypted channel.
+///
+/// Each side first sends `MAGIC` and its protocol version, then a symmetric SPAKE2 message
+/// for the normalized pairing code. HKDF of the SPAKE2 key (salted with everything sent so
+/// far) is the Noise pre-shared key, and the same transcript is the Noise prologue. Only a
+/// computer with the same code and protocol version completes the Noise handshake; the code
+/// itself is never sent.
+fn secure(stream: &mut TcpStream, code: &str, initiator: bool) -> Res<TransportState> {
+    let mut intro = MAGIC.to_vec();
+    intro.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    write_frame(stream, &intro)?;
+    let theirs = read_frame(stream).map_err(|e| {
+        format!("the other computer closed the connection before pairing ({e}); it may run an older MagicInput (update MagicInput on both computers), or be waiting after failed attempts")
+    })?;
+    if theirs.len() != intro.len() || theirs[..MAGIC.len()] != MAGIC[..] {
+        return Err("the other computer runs an older MagicInput: update MagicInput on both computers".into());
+    }
+    let version = u32::from_be_bytes(theirs[MAGIC.len()..].try_into()?);
+    if version != PROTOCOL_VERSION {
+        return Err(format!("the other computer runs protocol v{version}, this one v{PROTOCOL_VERSION}: update MagicInput on both computers").into());
+    }
+
+    let id = format!("{PAKE_ID}/v{PROTOCOL_VERSION}");
+    let (pake, ours) = Spake2::<Ed25519Group>::start_symmetric(&Password::new(normalize_code(code).as_bytes()), &Identity::new(id.as_bytes()));
+    write_frame(stream, &ours)?;
+    let peer = read_frame(stream).map_err(|e| format!("the other computer stopped pairing ({e}); check both use the same code"))?;
+    let key = pake.finish(&peer).map_err(|e| format!("invalid pairing message: {e:?}"))?;
+
+    let (first, second) = if initiator { (&ours, &peer) } else { (&peer, &ours) };
+    let mut transcript = intro;
+    transcript.extend_from_slice(first);
+    transcript.extend_from_slice(second);
+    let mut psk = [0u8; 32];
+    hkdf::Hkdf::<Sha256>::new(Some(&transcript), &key)
+        .expand(PSK_INFO, &mut psk)
+        .map_err(|_| "key derivation failed")?;
+
+    let builder = snow::Builder::new(NOISE.parse()?).psk(0, &psk)?.prologue(&transcript)?;
     let mut buf = vec![0u8; MAX_FRAME];
+    let mismatch = "the pairing codes don't match";
     let mut hs = if initiator { builder.build_initiator()? } else { builder.build_responder()? };
     if initiator {
         let n = hs.write_message(&[], &mut buf)?;
         write_frame(stream, &buf[..n])?;
-        hs.read_message(&read_frame(stream)?, &mut buf)?;
+        let reply = read_frame(stream).map_err(|_| mismatch)?;
+        hs.read_message(&reply, &mut buf).map_err(|_| mismatch)?;
     } else {
-        hs.read_message(&read_frame(stream)?, &mut buf)?;
+        hs.read_message(&read_frame(stream)?, &mut buf).map_err(|_| mismatch)?;
         let n = hs.write_message(&[], &mut buf)?;
         write_frame(stream, &buf[..n])?;
     }
     Ok(hs.into_transport_mode()?)
+}
+
+/// Log text for how long an address waits before its next pairing attempt.
+fn pause(wait: Duration) -> String {
+    if wait.is_zero() { String::new() } else { format!(" (next pairing attempt allowed in {} s)", wait.as_secs()) }
+}
+
+/// Paces pairing attempts per address so codes can't be tried quickly. Each address gets a
+/// few attempts in a row, then waits longer before each next one (up to ten seconds); waiting
+/// is forgotten after ten quiet minutes. An attempt counts as failed from the moment it
+/// starts until it succeeds, so parallel attempts are paced too. Inbound, addresses that
+/// never paired also share an overall budget per minute.
+struct Throttle {
+    peers: HashMap<IpAddr, Strikes>,
+    /// Whether the overall budget applies.
+    overall: bool,
+    /// Starts of recent attempts from addresses that never paired.
+    recent: VecDeque<Instant>,
+    /// Addresses that paired since MagicInput started.
+    paired: HashSet<IpAddr>,
+}
+
+#[derive(Clone, Copy)]
+struct Strikes {
+    count: u32,
+    last: Instant,
+}
+
+impl Throttle {
+    /// Attempts in a row before waiting starts.
+    const FREE: u32 = 3;
+    const MAX_WAIT: Duration = Duration::from_secs(10);
+    const FORGET: Duration = Duration::from_secs(600);
+    const MINUTE: Duration = Duration::from_secs(60);
+    /// Attempts per minute from addresses that never paired, all together.
+    const OVERALL: usize = 30;
+
+    fn new(overall: bool) -> Throttle {
+        Throttle { peers: HashMap::new(), overall, recent: VecDeque::new(), paired: HashSet::new() }
+    }
+
+    /// How long to wait after `count` attempts that didn't succeed.
+    fn wait(count: u32) -> Duration {
+        match count.checked_sub(Self::FREE + 1) {
+            None => Duration::ZERO,
+            Some(n) => Duration::from_secs(1 << n.min(6)).min(Self::MAX_WAIT),
+        }
+    }
+
+    /// How long `ip` has to wait before its next attempt.
+    fn waiting(&self, ip: IpAddr) -> Duration {
+        self.peers.get(&ip).map_or(Duration::ZERO, |s| Self::wait(s.count))
+    }
+
+    /// Whether an attempt with `ip` may start now; if so it's counted.
+    fn try_begin(&mut self, ip: IpAddr, now: Instant) -> bool {
+        self.peers.retain(|_, s| now.duration_since(s.last) < Self::FORGET);
+        if self.peers.get(&ip).is_some_and(|s| now < s.last + Self::wait(s.count)) {
+            return false;
+        }
+        if self.overall && !self.paired.contains(&ip) {
+            while self.recent.front().is_some_and(|t| now.duration_since(*t) >= Self::MINUTE) {
+                self.recent.pop_front();
+            }
+            if self.recent.len() >= Self::OVERALL {
+                return false;
+            }
+            self.recent.push_back(now);
+        }
+        let s = self.peers.entry(ip).or_insert(Strikes { count: 0, last: now });
+        s.count += 1;
+        s.last = now;
+        true
+    }
+
+    fn succeeded(&mut self, ip: IpAddr) {
+        self.peers.remove(&ip);
+        self.paired.insert(ip);
+    }
+
+    /// The attempt never reached the other computer.
+    fn not_attempted(&mut self, ip: IpAddr) {
+        if let Some(s) = self.peers.get_mut(&ip) {
+            s.count = s.count.saturating_sub(1);
+        }
+    }
+
+    fn clear(&mut self) {
+        self.peers.clear();
+        self.recent.clear();
+    }
 }
 
 /// The other computer offers a file: take it into Downloads if its user is working here (or
@@ -630,25 +825,35 @@ fn read_frame(stream: &mut TcpStream) -> Res<Vec<u8>> {
 mod tests {
     use super::*;
 
-    fn pair(psk_a: [u8; 32], psk_b: [u8; 32]) -> (Res<TransportState>, Res<TransportState>, TcpStream, TcpStream) {
+    /// Pair a dialer using `code_a` with a listener using `code_b`.
+    fn pair(code_a: &'static str, code_b: &str) -> (Res<TransportState>, Res<TransportState>, TcpStream, TcpStream) {
+        let (mut b, t) = dial(move |s| secure(s, code_a, true));
+        let rb = secure(&mut b, code_b, false);
+        if rb.is_err() {
+            // As `establish` does: a failed connection is dropped.
+            let _ = b.shutdown(std::net::Shutdown::Both);
+        }
+        let (ra, a) = t.join().unwrap();
+        (ra, rb, a, b)
+    }
+
+    /// Run `f` on a connection to a local listener; returns the listener's end.
+    fn dial<T: Send + 'static>(f: impl FnOnce(&mut TcpStream) -> T + Send + 'static) -> (TcpStream, thread::JoinHandle<(T, TcpStream)>) {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = l.local_addr().unwrap();
         let t = thread::spawn(move || {
             let mut s = TcpStream::connect(addr).unwrap();
             s.set_read_timeout(Some(TIMEOUT)).unwrap();
-            let r = handshake(&mut s, &psk_a, true);
-            (r, s)
+            (f(&mut s), s)
         });
-        let (mut b, _) = l.accept().unwrap();
+        let (b, _) = l.accept().unwrap();
         b.set_read_timeout(Some(TIMEOUT)).unwrap();
-        let rb = handshake(&mut b, &psk_b, false);
-        let (ra, a) = t.join().unwrap();
-        (ra, rb, a, b)
+        (b, t)
     }
 
     #[test]
     fn encrypted_roundtrip() {
-        let (ra, rb, mut a, mut b) = pair([7; 32], [7; 32]);
+        let (ra, rb, mut a, mut b) = pair("K7QP-3MZD", "k7qp 3mzd");
         let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
         let m = Msg::Key { hid: 0x04, down: true };
         write_msg(&mut a, &mut na, &m).unwrap();
@@ -675,7 +880,7 @@ mod tests {
         std::fs::write(&src, &data).unwrap();
         std::fs::write(dir.join("out/photo.heic"), b"already here").unwrap();
 
-        let (ra, rb, mut a, mut b) = pair([3; 32], [3; 32]);
+        let (ra, rb, mut a, mut b) = pair("AAAA-BBBB", "AAAA-BBBB");
         let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
         let sender = thread::spawn(move || offer_file(&mut a, &mut na, &src, true, 0).unwrap());
         let Msg::Offer { name, size, force, .. } = read_msg(&mut b, &mut nb).unwrap() else { panic!("expected an offer") };
@@ -694,7 +899,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("a.txt");
         std::fs::write(&src, b"hi").unwrap();
-        let (ra, rb, mut a, mut b) = pair([4; 32], [4; 32]);
+        let (ra, rb, mut a, mut b) = pair("AAAA-BBBB", "AAAA-BBBB");
         let (mut na, mut nb) = (ra.unwrap(), rb.unwrap());
         let sender = thread::spawn(move || offer_file(&mut a, &mut na, &src, false, 0).unwrap());
         let Msg::Offer { name, size, .. } = read_msg(&mut b, &mut nb).unwrap() else { panic!("expected an offer") };
@@ -714,7 +919,114 @@ mod tests {
 
     #[test]
     fn wrong_code_is_rejected() {
-        let (_ra, rb, _a, _b) = pair([1; 32], [2; 32]);
-        assert!(rb.is_err());
+        let (ra, rb, _a, _b) = pair("K7QP-3MZD", "K7QP-3MZE");
+        assert!(rb.unwrap_err().to_string().contains("codes don't match"));
+        assert!(ra.is_err());
+    }
+
+    #[test]
+    fn older_versions_are_told_to_update() {
+        // MagicInput 0.6.2 and older open with a bare Noise message.
+        let (mut b, t) = dial(|s| {
+            let psk = [9; 32];
+            let mut hs = snow::Builder::new(NOISE.parse().unwrap()).psk(0, &psk).unwrap().build_initiator().unwrap();
+            let mut buf = vec![0u8; MAX_FRAME];
+            let n = hs.write_message(&[], &mut buf).unwrap();
+            write_frame(s, &buf[..n]).unwrap();
+        });
+        let e = secure(&mut b, "K7QP-3MZD", false).unwrap_err().to_string();
+        assert!(e.contains("update MagicInput on both computers"), "{e}");
+        t.join().unwrap();
+
+        // A future version with the same opening.
+        let (mut b, t) = dial(|s| {
+            let mut intro = MAGIC.to_vec();
+            intro.extend_from_slice(&(PROTOCOL_VERSION + 1).to_be_bytes());
+            write_frame(s, &intro).unwrap();
+        });
+        let e = secure(&mut b, "K7QP-3MZD", false).unwrap_err().to_string();
+        assert!(e.contains("update MagicInput on both computers"), "{e}");
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn advertisement_has_nothing_from_the_pairing_code() {
+        let a = Config { code: "K7QP-3MZD".into(), ..Default::default() };
+        let b = Config { code: "ABCD-EFGH".into(), ..a.clone() };
+        assert_eq!(txt_properties(&a), txt_properties(&b));
+        let keys: Vec<&str> = txt_properties(&a).iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys, ["id", "n", "v"]);
+        for (_, v) in txt_properties(&a) {
+            assert!(!v.contains("K7QP") && !v.contains("3MZD"));
+        }
+    }
+
+    #[test]
+    fn failed_attempts_are_paced() {
+        let ip: IpAddr = "192.168.1.20".parse().unwrap();
+        let other: IpAddr = "192.168.1.21".parse().unwrap();
+        let t0 = Instant::now();
+        let mut th = Throttle::new(true);
+        for _ in 0..=Throttle::FREE {
+            assert!(th.try_begin(ip, t0));
+        }
+        // Waiting starts, and grows with each further attempt.
+        assert!(!th.try_begin(ip, t0));
+        assert!(th.try_begin(other, t0), "other addresses aren't held up");
+        assert!(th.try_begin(ip, t0 + Duration::from_secs(1)));
+        assert!(!th.try_begin(ip, t0 + Duration::from_secs(2)));
+        assert!(th.try_begin(ip, t0 + Duration::from_secs(3)));
+        let mut t = t0 + Duration::from_secs(3);
+        for _ in 0..20 {
+            t += Throttle::MAX_WAIT;
+            assert!(th.try_begin(ip, t), "the wait stops growing");
+        }
+        assert!(!th.try_begin(ip, t + Throttle::MAX_WAIT - Duration::from_secs(1)));
+        assert!(th.try_begin(ip, t + Throttle::FORGET + Throttle::MAX_WAIT), "forgotten after a quiet while");
+
+        // Pairing clears the count.
+        th.succeeded(ip);
+        for _ in 0..=Throttle::FREE {
+            assert!(th.try_begin(ip, t0));
+        }
+        // Outgoing attempts that reached nobody don't count.
+        let mut out = Throttle::new(false);
+        for _ in 0..10 {
+            assert!(out.try_begin(ip, t0));
+            out.not_attempted(ip);
+        }
+    }
+
+    #[test]
+    fn computers_that_never_paired_share_a_budget() {
+        let t0 = Instant::now();
+        let mut th = Throttle::new(true);
+        let known: IpAddr = "10.0.0.1".parse().unwrap();
+        assert!(th.try_begin(known, t0));
+        th.succeeded(known);
+        // The known computer's first attempt used up part of the budget.
+        for i in 1..Throttle::OVERALL {
+            assert!(th.try_begin(IpAddr::V4(Ipv4Addr::new(10, 0, 1, i as u8)), t0));
+        }
+        assert!(!th.try_begin("10.0.2.1".parse().unwrap(), t0));
+        assert!(th.try_begin(known, t0), "a computer that paired before still gets in");
+        assert!(th.try_begin("10.0.2.1".parse().unwrap(), t0 + Throttle::MINUTE));
+    }
+
+    #[test]
+    fn right_code_pairs_after_failed_attempts() {
+        let net_ip: IpAddr = "127.0.0.1".parse().unwrap();
+        let mut th = Throttle::new(true);
+        let t0 = Instant::now();
+        for _ in 0..Throttle::FREE {
+            assert!(th.try_begin(net_ip, t0));
+            let (_, rb, _, _) = pair("WRNG-C0DE", "K7QP-3MZD");
+            assert!(rb.is_err());
+        }
+        assert!(th.try_begin(net_ip, t0));
+        let (ra, rb, _, _) = pair("K7QP-3MZD", "K7QP-3MZD");
+        assert!(ra.is_ok() && rb.is_ok());
+        th.succeeded(net_ip);
+        assert!(th.try_begin(net_ip, t0));
     }
 }

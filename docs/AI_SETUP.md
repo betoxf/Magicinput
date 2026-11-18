@@ -111,7 +111,7 @@ The output looks like this:
 | `role` | Meaning | What to do |
 | --- | --- | --- |
 | `first` | No other computer running MagicInput was found. | Give the person this computer's `pairing_code` and tell them to install MagicInput on the other computer (they can paste the prompt from the README into an assistant there). On the other computer, pairing is `magicinput pair <this code>`. |
-| `second` | Another computer runs MagicInput (`nearby`) but with a different code. | Get that computer's code and pair this one with it (below). |
+| `second` | Another computer runs MagicInput (`nearby`) but isn't connected. Whether it uses the same code is only known once they connect. | Get that computer's code and pair this one with it (below). |
 | `paired` | Already connected (`connected_to`). | Skip to step 5. |
 
 `next_step` always says the next thing to do in plain words. `service` is `running`, `waiting_for_permission` (Mac permissions, step 2) or `not_running` (run `install` again).
@@ -153,7 +153,7 @@ PowerShell:
 while (-not ((& $MI status --json | Out-String | ConvertFrom-Json).connected_to)) { Start-Sleep 3 }; & $MI status
 ```
 
-Usually this takes a few seconds. If it hasn't connected after about 30 seconds, see Troubleshooting.
+Usually this takes a few seconds. After a few attempts with a wrong code, the computers wait up to ten seconds between tries, so give it half a minute after pairing. If it still hasn't connected, see Troubleshooting.
 
 ## 7. Tell the person how to use it
 
@@ -173,8 +173,9 @@ If the person tells you where the other screen is, you can pin it without the pa
 | `service: "waiting_for_permission"` (Mac) | The person still needs to turn on MagicInput under Accessibility **and** Input Monitoring (step 2). |
 | `service: "not_running"` | Run `install` again. On Windows check the task: `schtasks /query /tn magicinput`. |
 | `nearby` is empty on **both** computers | They're on different networks, or the network blocks discovery. Find the other computer's IP address and point this one at it: `magicinput peer 192.168.1.20`. |
-| `nearby` shows the other computer with `same_code: true` but `connected_to` stays empty | Usually the Windows firewall. In PowerShell run `Get-NetConnectionProfile`; if the network is `Public`, MagicInput's rule (private networks) doesn't apply. Ask the person before changing it: `Set-NetConnectionProfile -InterfaceAlias "<name>" -NetworkCategory Private`. |
-| `nearby` shows `same_code: false` | The codes differ: pair again (step 4) using the other computer's code. |
+| `nearby` shows the other computer, both show the same `pairing_code`, but `connected_to` stays empty after half a minute | Usually the Windows firewall. In PowerShell run `Get-NetConnectionProfile`; if the network is `Public`, MagicInput's rule (private networks) doesn't apply. Ask the person before changing it: `Set-NetConnectionProfile -InterfaceAlias "<name>" -NetworkCategory Private`. |
+| `nearby` shows the other computer and the two `pairing_code`s differ | Pair again (step 4) using the other computer's code. |
+| `nearby` shows `compatible: false` | The other computer runs a different version of MagicInput: update MagicInput on both computers. |
 | Connected, but the pointer doesn't cross | In Auto mode push **firmly**. With a pinned arrangement the pointer only crosses where the screens touch in Displays. |
 | Can't click into some Windows apps | Apps running as administrator need MagicInput to have admin rights too; the installer sets that up. Reinstall with the admin prompt accepted. |
 | Pointer stutters over Wi-Fi | See the Tips section of the README (5 GHz channel 149). |

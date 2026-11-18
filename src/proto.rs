@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::Layout;
 use crate::geom::Rect;
 
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Which edge of *this* computer's screens the other computer sits on.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
