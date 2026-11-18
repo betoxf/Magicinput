@@ -2,6 +2,16 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+
+- **Hardened device pairing; both computers need this version.** `magicinput status` can't tell whether a nearby computer uses the same code until it connects, so its `nearby` entries drop `same_code` and gain `compatible` (same protocol version).
+
+### Compatibility
+
+- Both computers need this version: it doesn't connect to 0.6.2 or older, and says to update MagicInput on both computers.
+
 ## [0.6.2] - 2026-10-25
 
 ### Changed

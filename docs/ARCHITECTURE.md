@@ -48,8 +48,9 @@ Bursts of movement are merged before sending. On the receiving side, movement th
 
 ## Discovery and security
 
-- Each computer advertises `_magicinput._tcp` over mDNS with a random id and a short tag derived from the pairing code; it only dials peers with the same tag. Of two peers, the one with the smaller id dials.
-- Connections use Noise `NNpsk0_25519_ChaChaPoly_BLAKE2s` over TCP (port 24842, `TCP_NODELAY`; on macOS marked as interactive traffic for Wi-Fi). The pre-shared key is SHA-256 of the normalized pairing code. See [SECURITY.md](../SECURITY.md) for the limits of a short code.
+- Each computer advertises `_magicinput._tcp` over mDNS with a random id, its name and the protocol version (`id`, `n`, `v`); nothing derived from the pairing code. It dials other MagicInput computers with the same protocol version (up to 16) and lets pairing decide whether they belong together. Of two peers, the one with the smaller id dials.
+- Connections run over TCP (port 24842, `TCP_NODELAY`; on macOS marked as interactive traffic for Wi-Fi). Each side first sends `MagicInp` plus its protocol version, so a computer on another version gets a clear "update MagicInput on both computers" error. Then both run symmetric SPAKE2 (Ed25519, identity `magicinput/pake/v<version>`) on the normalized pairing code. HKDF-SHA256 of the SPAKE2 key, salted with the transcript so far, becomes the pre-shared key for Noise `NNpsk0_25519_ChaChaPoly_BLAKE2s`, which also takes the transcript as its prologue and carries all further traffic. With different codes the Noise handshake fails.
+- Pairing attempts are paced per address in both directions: four in a row, then a wait that doubles up to ten seconds (forgotten after ten quiet minutes, cleared on success or when the local code changes). Incoming attempts from addresses that never paired also share a budget of 30 per minute, and at most 8 incoming connections pair at once.
 - Only addresses in the subnet of one of the computer's own network interfaces are accepted or dialed; CGNAT/Tailscale ranges are excluded.
 
 ## Settings panel

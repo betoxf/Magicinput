@@ -18,9 +18,11 @@ Include the MagicInput, macOS and Windows versions, your network setup, reproduc
 ## Security boundaries
 
 - There is no MagicInput server; the two computers talk directly.
-- Every connection is encrypted with the Noise protocol (`Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`); the pre-shared key is derived from the pairing code, which is never transmitted. Without the code a device can't complete the handshake.
+- Pairing uses a password-authenticated key exchange (symmetric SPAKE2 over Ed25519, bound to the protocol version). The pairing code is never transmitted, and recording a connection doesn't let anyone test guesses of the code offline: each connection attempt can check at most one guess.
+- The key from that exchange, through HKDF-SHA256 over the exchange transcript, is the pre-shared key of the Noise protocol (`Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`) that encrypts everything afterwards. Without the code a device can't complete the handshake.
+- Discovery (mDNS) advertises only a random computer id, the computer's name and the protocol version; nothing derived from the pairing code.
+- Failed pairing attempts are paced: a few per address, then a growing wait between attempts, plus an overall limit per minute for addresses that never paired. Failed attempts are logged without the code.
 - Only peers on the same local subnet are accepted or dialed; connections from the internet, VPNs and Tailscale addresses are refused.
-- The pairing code is short (about 39 bits) so it's easy to type. Someone on your local network who records a MagicInput connection could recover it by offline guessing and then connect. The local-network restriction is the main boundary; on untrusted networks (cafés, shared offices), generate a new code afterwards. Moving to a password-authenticated key exchange (PAKE), which removes offline guessing, is planned.
 - Configuration (including the pairing code) is stored unencrypted in your user profile.
 - Users are responsible for the security of their operating system accounts and local network.
 

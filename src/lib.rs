@@ -206,7 +206,7 @@ fn run(mut cfg: Config) {
         std::process::exit(0);
     });
 
-    log::info!("magicinput {} running as \"{}\" (code {})", env!("CARGO_PKG_VERSION"), cfg.name, cfg.code);
+    log::info!("magicinput {} running as \"{}\"", env!("CARGO_PKG_VERSION"), cfg.name);
     log::info!("Looking for your other computer… (Ctrl+Alt+Esc / Control+Option+Esc brings the pointer back)");
     if let Err(e) = platform::run_capture() {
         exit(&e);
