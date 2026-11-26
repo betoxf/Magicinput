@@ -553,6 +553,10 @@ fn receive_file(stream: &mut TcpStream, noise: &mut TransportState, name: &str, 
         }
         file.sync_all()?;
         drop(file);
+        // Marked before it gets its real name, so the file is never there without the mark.
+        if let Err(e) = mark_from_elsewhere(&part) {
+            warn!("Couldn't mark {name} as coming from another device ({e}); it's saved without the mark");
+        }
         let dest = free_path(dir, &name);
         std::fs::rename(&part, &dest)?;
         write_msg(stream, noise, &Msg::Received)?;
@@ -562,6 +566,34 @@ fn receive_file(stream: &mut TcpStream, noise: &mut TransportState, name: &str, 
         let _ = std::fs::remove_file(&part);
     }
     r.map(Some)
+}
+
+/// Mark a received file as coming from another device, as AirDrop marked it on the Mac it came
+/// from. Windows (SmartScreen, Office) and macOS (Gatekeeper) then check it before opening it,
+/// the way they check a download.
+#[cfg(windows)]
+fn mark_from_elsewhere(path: &Path) -> std::io::Result<()> {
+    // The "mark of the web": a second stream on the file, saying zone 3 (the internet).
+    let mut stream = path.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    std::fs::write(stream, "[ZoneTransfer]\r\nZoneId=3\r\n")
+}
+
+#[cfg(target_os = "macos")]
+fn mark_from_elsewhere(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    unsafe extern "C" {
+        fn setxattr(path: *const i8, name: *const i8, value: *const u8, size: usize, position: u32, options: i32) -> i32;
+    }
+    let p = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // The quarantine mark: the flags AirDrop and browsers write, when, and who saved the file.
+    // Our own name, not AirDrop's (`sharingd`): the AirDrop relay would send the file back.
+    let mark = format!("0081;{secs:08x};MagicInput;");
+    match unsafe { setxattr(p.as_ptr(), c"com.apple.quarantine".as_ptr(), mark.as_ptr(), mark.len(), 0, 0) } {
+        0 => Ok(()),
+        _ => Err(std::io::Error::last_os_error()),
+    }
 }
 
 /// A file name that is safe on Windows and macOS: no folders, no reserved characters.
@@ -685,6 +717,20 @@ mod tests {
         assert_eq!(saved, dir.join("out/photo (2).heic"));
         assert_eq!(std::fs::read(&saved).unwrap(), data);
         assert_eq!(std::fs::read_dir(dir.join("out")).unwrap().count(), 2, "no part file left");
+        // Under its final name it still carries the mark of a file from another device.
+        #[cfg(windows)]
+        {
+            let mut stream = saved.as_os_str().to_owned();
+            stream.push(":Zone.Identifier");
+            assert_eq!(std::fs::read_to_string(stream).unwrap(), "[ZoneTransfer]\r\nZoneId=3\r\n");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let out = std::process::Command::new("xattr").args(["-p", "com.apple.quarantine"]).arg(&saved).output().unwrap();
+            let mark = String::from_utf8(out.stdout).unwrap();
+            let fields: Vec<&str> = mark.trim().split(';').collect();
+            assert_eq!((fields[0], fields[2]), ("0081", "MagicInput"), "{mark}");
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 
