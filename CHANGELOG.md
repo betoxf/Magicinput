@@ -2,6 +2,12 @@
 
 All notable changes to MagicInput are documented here. The project follows [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Fixed
+
+- **AirDropped files keep their "came from another device" mark on the other computer.** A file that moves on to the PC's Downloads folder is now marked the way a download is, so Windows SmartScreen and Office Protected View check it before it opens (on a Mac that receives one, Gatekeeper does). Before, the mark AirDrop put on it stayed behind on the Mac. The computer that receives the file needs this version. A Downloads folder on a drive that can't hold the mark (exFAT, FAT32) still gets the file, with a warning in the log.
+
 ## [0.6.2] - 2026-10-25
 
 ### Changed
